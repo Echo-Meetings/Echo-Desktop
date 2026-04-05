@@ -1,55 +1,85 @@
 import { useState, useCallback } from 'react'
 import { useAppStore } from '@/stores/appStore'
 import { SUPPORTED_EXTENSIONS } from '@/types/models'
+import { useT, fmt } from '@/i18n'
 
 export function DropZone() {
-  const { startProcessing, phase } = useAppStore()
+  const t = useT()
   const [isDragOver, setIsDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const isProcessing = phase.type === 'processing'
 
-  const handleFile = useCallback(
-    async (filePath: string) => {
-      if (isProcessing) return // Block during active transcription
-      setError(null)
+  const enqueueFiles = useCallback(async (filePaths: string[]) => {
+    setError(null)
+
+    const validFiles: Array<{ sessionId: string; fileName: string; filePath: string }> = []
+    const errors: string[] = []
+
+    for (const filePath of filePaths) {
       const result = await window.electronAPI.file.validate(filePath)
       if (result.status === 'valid' || result.status === 'needsConversion') {
         const fileName = filePath.split(/[/\\]/).pop() || filePath
-        startProcessing(fileName, filePath)
-        await window.electronAPI.transcription.start(
-          filePath,
-          useAppStore.getState().languageOverride === 'auto'
-            ? null
-            : useAppStore.getState().languageOverride
-        )
+        const sessionId = crypto.randomUUID()
+        validFiles.push({ sessionId, fileName, filePath })
       } else if (result.status === 'unsupportedFormat') {
-        setError(
-          `Unsupported format. Supported: ${[...SUPPORTED_EXTENSIONS].join(', ')}`
-        )
+        const name = filePath.split(/[/\\]/).pop() || filePath
+        errors.push(fmt(t.unsupportedFormat, { name }))
       } else {
-        setError("This file doesn't seem to contain audio.")
+        const name = filePath.split(/[/\\]/).pop() || filePath
+        errors.push(fmt(t.unreadable, { name }))
       }
-    },
-    [startProcessing, isProcessing]
-  )
+    }
+
+    if (errors.length > 0 && validFiles.length === 0) {
+      setError(
+        errors.length === 1
+          ? errors[0]
+          : fmt(t.filesNotSupported, { n: errors.length, formats: [...SUPPORTED_EXTENSIONS].join(', ') })
+      )
+      return
+    }
+
+    if (validFiles.length > 0) {
+      const store = useAppStore.getState()
+      const language = store.languageOverride === 'auto' ? null : store.languageOverride
+
+      // Add to store
+      store.enqueueFiles(validFiles)
+
+      // Focus on first new file
+      store.setFocusedSessionId(validFiles[0].sessionId)
+
+      // Send to main process
+      await window.electronAPI.queue.enqueue(
+        validFiles.map((f) => ({
+          sessionId: f.sessionId,
+          filePath: f.filePath,
+          language
+        }))
+      )
+
+      if (errors.length > 0) {
+        setError(fmt(t.filesSkipped, { n: errors.length }))
+      }
+    }
+  }, [t])
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
       setIsDragOver(false)
-      const file = e.dataTransfer.files[0]
-      if (file) {
-        // In Electron, file.path gives the absolute path
-        handleFile((file as File & { path: string }).path)
+      const files = Array.from(e.dataTransfer.files)
+      if (files.length > 0) {
+        const paths = files.map((f) => (f as File & { path: string }).path)
+        enqueueFiles(paths)
       }
     },
-    [handleFile]
+    [enqueueFiles]
   )
 
   const handleClick = useCallback(async () => {
-    const filePath = await window.electronAPI.file.openPicker()
-    if (filePath) handleFile(filePath)
-  }, [handleFile])
+    const filePaths = await window.electronAPI.file.openPicker()
+    if (filePaths.length > 0) enqueueFiles(filePaths)
+  }, [enqueueFiles])
 
   return (
     <div
@@ -70,9 +100,9 @@ export function DropZone() {
         }}
       >
         <div style={styles.icon}>↓</div>
-        <div style={styles.title}>Drop a file or click to browse</div>
+        <div style={styles.title}>{t.dropTitle}</div>
         <div style={styles.subtitle}>
-          Supports MP3, WAV, M4A, MP4, MOV, WebM, OGG
+          {t.dropSubtitle}
         </div>
         {error && <div style={styles.error}>{error}</div>}
       </div>

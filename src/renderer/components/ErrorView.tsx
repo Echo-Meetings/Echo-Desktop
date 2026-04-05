@@ -1,4 +1,5 @@
 import { useAppStore } from '@/stores/appStore'
+import { useT } from '@/i18n'
 
 interface ErrorViewProps {
   message: string
@@ -6,6 +7,7 @@ interface ErrorViewProps {
 }
 
 export function ErrorView({ message, retryFilePath }: ErrorViewProps) {
+  const t = useT()
   const { resetToDropZone, startProcessing } = useAppStore()
 
   const handleRetry = async () => {
@@ -34,11 +36,11 @@ export function ErrorView({ message, retryFilePath }: ErrorViewProps) {
         <div style={styles.actions}>
           {retryFilePath && (
             <button onClick={handleRetry} style={styles.button}>
-              Try again
+              {t.tryAgain}
             </button>
           )}
           <button onClick={resetToDropZone} style={styles.buttonSecondary}>
-            Choose another file
+            {t.chooseAnotherFile}
           </button>
         </div>
       </div>

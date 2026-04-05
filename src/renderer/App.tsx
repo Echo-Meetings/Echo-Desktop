@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAppStore } from '@/stores/appStore'
 import { Sidebar } from '@/components/Sidebar'
 import { DropZone } from '@/components/DropZone'
@@ -14,6 +14,8 @@ export default function App() {
     isModelReady,
     hasCompletedOnboarding,
     viewingEntry,
+    focusedSessionId,
+    queueSessions,
     theme,
     setTheme
   } = useAppStore()
@@ -43,12 +45,20 @@ export default function App() {
       const lang = await window.electronAPI.settings.get('languageOverride')
       if (typeof lang === 'string') useAppStore.getState().setLanguageOverride(lang)
 
+      // Load UI language (auto-detect if not set)
+      const { detectSystemLocale } = await import('@/i18n')
+      const savedUiLang = await window.electronAPI.settings.get('uiLanguage')
+      if (savedUiLang && typeof savedUiLang === 'string') {
+        useAppStore.getState().setUiLanguage(savedUiLang as 'en' | 'ru' | 'de' | 'fr')
+      } else {
+        useAppStore.getState().setUiLanguage(detectSystemLocale())
+      }
+
       // Check if model AND dependencies are ready
       const [modelStatus, depsStatus] = await Promise.all([
         window.electronAPI.model.getStatus(),
         window.electronAPI.deps.getStatus()
       ])
-      // Only mark model ready if all deps are also available
       if (modelStatus.loaded && depsStatus.whisperAvailable && depsStatus.ffmpegAvailable) {
         useAppStore.getState().setModelReady(true)
       }
@@ -60,27 +70,89 @@ export default function App() {
     loadSettings()
   }, [])
 
-  // Subscribe to transcription streaming events
+  // Resizable sidebar (hooks must be before conditional returns)
+  const [sidebarWidth, setSidebarWidth] = useState(260)
+  const isResizing = useRef(false)
+
+  const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isResizing.current = true
+    const startX = e.clientX
+    const startWidth = sidebarWidth
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return
+      const newWidth = Math.max(200, Math.min(450, startWidth + (ev.clientX - startX)))
+      setSidebarWidth(newWidth)
+    }
+    const onUp = () => {
+      isResizing.current = false
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [sidebarWidth])
+
+  // Subscribe to queue events
   useEffect(() => {
     const unsubs = [
-      window.electronAPI.on('transcription:progress', (progress, lang) => {
-        useAppStore.getState().setTranscriptionProgress(progress as number)
-        if (lang) useAppStore.getState().setDetectedLanguage(lang as string)
+      window.electronAPI.on('queue:sessionStarted', (sessionId) => {
+        useAppStore.getState().updateSessionStatus(sessionId as string, 'processing')
       }),
-      window.electronAPI.on('transcription:segment', (segments) => {
-        useAppStore.getState().appendLiveSegments(segments as never[])
+      window.electronAPI.on('queue:sessionProgress', (sessionId, progress, lang) => {
+        useAppStore.getState().updateSessionProgress(
+          sessionId as string,
+          progress as number,
+          lang as string | null
+        )
       }),
-      window.electronAPI.on('transcription:complete', async (result) => {
-        const r = result as { transcript: never; mediaPath: string | null }
-        useAppStore.getState().completeTranscription(r.transcript, r.mediaPath)
-        // Reload history to include the new entry
+      window.electronAPI.on('queue:sessionSegment', (sessionId, segments) => {
+        useAppStore.getState().appendSessionSegments(
+          sessionId as string,
+          segments as never[]
+        )
+      }),
+      window.electronAPI.on('queue:sessionCompleted', async (sessionId, data) => {
+        const d = data as { transcript: never; mediaPath: string | null; entryId: string | null }
+        useAppStore.getState().completeSession(
+          sessionId as string,
+          d.transcript,
+          d.mediaPath,
+          d.entryId
+        )
+        // Reload history
         const entries = await window.electronAPI.history.getAll()
         useAppStore.getState().setHistoryEntries(entries as never[])
+
+        // Auto-remove completed session from queue after 3 seconds
+        setTimeout(() => {
+          const state = useAppStore.getState()
+          const session = state.queueSessions.find((s) => s.sessionId === sessionId)
+          if (session?.status === 'completed') {
+            // If user is focused on this session, switch to viewing the history entry
+            if (state.focusedSessionId === sessionId && d.entryId) {
+              const entry = state.historyEntries.find((e) => e.id === d.entryId)
+              if (entry) {
+                state.setViewingEntry(entry)
+                state.setSelectedEntryId(entry.id)
+              }
+            }
+            state.removeSession(sessionId as string)
+          }
+        }, 3000)
       }),
-      window.electronAPI.on('transcription:error', (error) => {
-        const e = error as { message: string; retryFilePath: string | null }
-        useAppStore.getState().setError(e.message, e.retryFilePath)
+      window.electronAPI.on('queue:sessionError', (sessionId, message) => {
+        useAppStore.getState().failSession(sessionId as string, message as string)
       }),
+      window.electronAPI.on('queue:sessionRemoved', (sessionId) => {
+        useAppStore.getState().removeSession(sessionId as string)
+      }),
+      // Model events
       window.electronAPI.on('model:downloadProgress', (progress) => {
         useAppStore.getState().setModelDownloadProgress(progress as number)
       }),
@@ -91,7 +163,15 @@ export default function App() {
     return () => unsubs.forEach((u) => u())
   }, [])
 
-  // Routing: onboarding → model setup → main layout
+  // Notify main process about active sessions (for close warning)
+  useEffect(() => {
+    const hasActive = queueSessions.some(
+      (s) => s.status === 'processing' || s.status === 'queued'
+    )
+    window.electronAPI.app.setActiveSessions(hasActive)
+  }, [queueSessions])
+
+  // Routing: onboarding -> model setup -> main layout
   if (!hasCompletedOnboarding) {
     return <Onboarding />
   }
@@ -102,16 +182,37 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
-      <Sidebar />
+      <div style={{ width: sidebarWidth, flexShrink: 0, display: 'flex' }}>
+        <Sidebar />
+      </div>
+      {/* Sidebar resize handle */}
       <div
+        onMouseDown={handleSidebarResizeStart}
         style={{
-          width: 1,
-          backgroundColor: 'var(--color-border)',
-          flexShrink: 0
+          width: 5,
+          cursor: 'col-resize',
+          backgroundColor: 'transparent',
+          flexShrink: 0,
+          position: 'relative',
+          zIndex: 10
         }}
-      />
+      >
+        <div style={{
+          position: 'absolute',
+          left: 2,
+          top: 0,
+          bottom: 0,
+          width: 1,
+          backgroundColor: 'var(--color-border)'
+        }} />
+      </div>
       <main style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-        <ContentRouter phase={phase} viewingEntry={viewingEntry} />
+        <ContentRouter
+          phase={phase}
+          viewingEntry={viewingEntry}
+          focusedSessionId={focusedSessionId}
+          queueSessions={queueSessions}
+        />
       </main>
     </div>
   )
@@ -119,20 +220,23 @@ export default function App() {
 
 function ContentRouter({
   phase,
-  viewingEntry
+  viewingEntry,
+  focusedSessionId,
+  queueSessions
 }: {
   phase: ReturnType<typeof useAppStore.getState>['phase']
   viewingEntry: ReturnType<typeof useAppStore.getState>['viewingEntry']
+  focusedSessionId: string | null
+  queueSessions: ReturnType<typeof useAppStore.getState>['queueSessions']
 }) {
   const [historyMediaPath, setHistoryMediaPath] = useState<string | null>(null)
 
   // Resolve media path when viewing a history entry
   useEffect(() => {
-    setHistoryMediaPath(null) // Reset immediately to prevent stale video
+    setHistoryMediaPath(null)
     if (viewingEntry) {
       const entryId = viewingEntry.id
       window.electronAPI.history.getMediaUrl(entryId).then((path) => {
-        // Only update if we're still viewing the same entry
         if (useAppStore.getState().viewingEntry?.id === entryId) {
           setHistoryMediaPath(path as string | null)
         }
@@ -167,15 +271,33 @@ function ContentRouter({
     )
   }
 
-  // Phase-based routing (mirrors ContentView.swift)
-  switch (phase.type) {
-    case 'empty':
-      return <DropZone />
-    case 'processing':
-      return <ProcessingView fileName={phase.fileName} />
-    case 'result':
-      return <TranscriptView transcript={phase.transcript} mediaPath={phase.mediaPath} />
-    case 'error':
-      return <ErrorView message={phase.message} retryFilePath={phase.retryFilePath} />
+  // If focused on a queue session
+  if (focusedSessionId) {
+    const session = queueSessions.find((s) => s.sessionId === focusedSessionId)
+    if (session) {
+      if (session.status === 'processing' || session.status === 'queued') {
+        return <ProcessingView session={session} />
+      }
+      if (session.status === 'completed' && session.result) {
+        return (
+          <TranscriptView
+            key={session.sessionId}
+            transcript={session.result}
+            mediaPath={session.mediaPath}
+          />
+        )
+      }
+      if (session.status === 'error') {
+        return (
+          <ErrorView
+            message={session.error || 'Transcription failed'}
+            retryFilePath={session.filePath}
+          />
+        )
+      }
+    }
   }
+
+  // Default: DropZone
+  return <DropZone />
 }

@@ -41,6 +41,8 @@ interface WhisperJsonOutput {
 export class TranscriptionService {
   private currentProcess: ChildProcess | null = null
   private cancelled = false
+  private requestedLanguage: string | null = null
+  private processExitPromise: Promise<void> | null = null
 
   /**
    * Transcribe an audio file using whisper.cpp CLI.
@@ -54,6 +56,7 @@ export class TranscriptionService {
     onProgress: (fraction: number, language: string | null) => void,
     onSegment: (segments: TranscriptSegment[]) => void
   ): Promise<TranscriptResult> {
+    this.requestedLanguage = language
     const whisperPath = locateWhisperCli()
     if (!whisperPath) {
       throw new Error('whisper-cli not found. Download it in Settings or install via: brew install whisper-cpp')
@@ -102,6 +105,10 @@ export class TranscriptionService {
         stdio: ['ignore', 'pipe', 'pipe']
       })
       this.currentProcess = proc
+      this.processExitPromise = new Promise<void>((resolveExit) => {
+        proc.on('close', () => resolveExit())
+        proc.on('error', () => resolveExit())
+      })
 
       let stderr = ''
       let detectedLang: string | null = null
@@ -168,7 +175,7 @@ export class TranscriptionService {
 
         // Parse the JSON output file for final segments
         try {
-          const segments = this.parseJsonOutput(outputJson, displayName, detectedLang, startTime)
+          const segments = this.parseJsonOutput(outputJson, displayName, detectedLang, startTime, this.requestedLanguage)
           // Cleanup temp files
           try { unlinkSync(outputJson) } catch { /* ok */ }
           resolve(segments)
@@ -188,14 +195,16 @@ export class TranscriptionService {
     jsonPath: string,
     displayName: string,
     detectedLang: string | null,
-    startTime: number
+    startTime: number,
+    requestedLanguage: string | null
   ): TranscriptResult {
     if (!existsSync(jsonPath)) {
       throw new Error('Whisper JSON output not found')
     }
 
     const raw = JSON.parse(readFileSync(jsonPath, 'utf-8')) as WhisperJsonOutput
-    const lang = raw.result?.language || detectedLang
+    // Use whisper JSON language, then stderr-detected language, then the explicitly requested language
+    const lang = raw.result?.language || detectedLang || (requestedLanguage && requestedLanguage !== 'auto' ? requestedLanguage : null)
 
     // Convert to our segment format
     const rawSegments: TranscriptSegment[] = raw.transcription.map((t) => ({
@@ -233,13 +242,25 @@ export class TranscriptionService {
   cancel(): void {
     this.cancelled = true
     if (this.currentProcess) {
-      // Windows doesn't support SIGTERM — use default kill
       if (process.platform === 'win32') {
         this.currentProcess.kill()
       } else {
         this.currentProcess.kill('SIGTERM')
       }
       this.currentProcess = null
+    }
+  }
+
+  /**
+   * Cancel any running transcription and wait for the process to fully exit.
+   * Safe to call even if nothing is running.
+   */
+  async cancelAndWait(): Promise<void> {
+    if (!this.currentProcess) return
+    const exitPromise = this.processExitPromise
+    this.cancel()
+    if (exitPromise) {
+      await exitPromise
     }
   }
 }

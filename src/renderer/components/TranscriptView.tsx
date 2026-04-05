@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { TranscriptResult, TranscriptSegment } from '@/types/models'
 import { formatTimestamp, formatDuration, getFullText, getTimestampedText, isVideoFile } from '@/types/models'
+import { useT, fmt } from '@/i18n'
 
 const MIME_TYPES: Record<string, string> = {
   mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime',
@@ -34,6 +35,9 @@ interface TranscriptViewProps {
 }
 
 export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
+  const t = useT()
+  const [videoPanelWidth, setVideoPanelWidth] = useState(400)
+  const isVideoResizing = useRef(false)
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null)
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -41,7 +45,7 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
-  const [copyLabel, setCopyLabel] = useState('Copy')
+  const [copySuccess, setCopySuccess] = useState(false)
   const [videoLoading, setVideoLoading] = useState(true)
   const [mediaError, setMediaError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -70,6 +74,18 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
       setActiveSegmentId(seg.id)
     }
   }, [transcript.segments, getMediaElement])
+
+  // Auto-switch audio output when system default device changes (headphones, Bluetooth, etc.)
+  useEffect(() => {
+    const handler = async () => {
+      const el = videoRef.current || audioRef.current
+      if (el && 'setSinkId' in el) {
+        try { await (el as any).setSinkId('') } catch { /* not supported */ }
+      }
+    }
+    navigator.mediaDevices?.addEventListener('devicechange', handler)
+    return () => navigator.mediaDevices?.removeEventListener('devicechange', handler)
+  }, [])
 
   // Auto-scroll to active segment during playback
   useEffect(() => {
@@ -184,8 +200,8 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
 
   const handleCopy = async () => {
     await window.electronAPI.export.copyToClipboard(getFullText(transcript.segments))
-    setCopyLabel('Copied ✓')
-    setTimeout(() => setCopyLabel('Copy'), 1500)
+    setCopySuccess(true)
+    setTimeout(() => setCopySuccess(false), 1500)
   }
 
   const handleExport = async () => {
@@ -199,6 +215,8 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
     onLoadedMetadata: (e: React.SyntheticEvent<HTMLMediaElement>) => {
       setDuration(e.currentTarget.duration)
       setMediaError(null)
+      // Auto-play on load
+      e.currentTarget.play().catch(() => {})
     },
     onPlay: () => setIsPlaying(true),
     onPause: () => setIsPlaying(false),
@@ -230,25 +248,25 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
         {/* Stats bar */}
         {transcript.stats && (
           <div style={styles.statsBar}>
-            <StatCard label="Duration" value={formatDuration(transcript.stats.audioDuration)} />
-            <StatCard label="Processed in" value={formatDuration(transcript.stats.transcriptionDuration)} />
-            <StatCard label="Speed" value={`${transcript.stats.speedRatio.toFixed(1)}x`} />
-            <StatCard label="Words" value={String(transcript.stats.wordCount)} />
-            <StatCard label="Characters" value={String(transcript.stats.characterCount)} />
+            <StatCard label={t.duration} value={formatDuration(transcript.stats.audioDuration)} />
+            <StatCard label={t.processedIn} value={formatDuration(transcript.stats.transcriptionDuration)} />
+            <StatCard label={t.speed} value={`${transcript.stats.speedRatio.toFixed(1)}x`} />
+            <StatCard label={t.words} value={String(transcript.stats.wordCount)} />
+            <StatCard label={t.characters} value={String(transcript.stats.characterCount)} />
           </div>
         )}
 
         {/* Media error banner for audio files */}
         {!isVideo && mediaError && (
           <div style={styles.mediaBanner}>
-            <span>Audio playback error: {mediaError}</span>
+            <span>{fmt(t.audioError, { error: mediaError })}</span>
           </div>
         )}
 
         {/* No media available */}
         {!mediaUrl && (
           <div style={styles.mediaBanner}>
-            <span>Media file not available — playback disabled</span>
+            <span>{t.mediaNotAvailable}</span>
           </div>
         )}
 
@@ -281,7 +299,7 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
               />
             </div>
             <span style={styles.timeDisplay}>{formatTimestamp(duration)}</span>
-            <button onClick={toggleMute} style={styles.volumeButton} title={isMuted ? 'Unmute' : 'Mute'}>
+            <button onClick={toggleMute} style={styles.volumeButton} title={isMuted ? t.unmute : t.mute}>
               {isMuted ? '◇' : '◆'}
             </button>
             <input
@@ -339,26 +357,69 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
         {/* Bottom bar */}
         <div style={styles.bottomBar}>
           <button onClick={handleCopy} style={styles.actionButton}>
-            {copyLabel}
+            {copySuccess ? `${t.copied} ✓` : t.copy}
           </button>
-          <button onClick={handleExport} style={styles.actionButton}>
-            Export TXT
+          <button onClick={handleExport} style={styles.actionButtonPrimary}>
+            {t.exportTxt}
           </button>
         </div>
       </div>
 
-      {/* Video panel (right side) */}
+      {/* Video resize handle + panel */}
       {isVideo && mediaUrl && (
-        <div style={styles.videoPanel}>
+        <>
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault()
+            isVideoResizing.current = true
+            const startX = e.clientX
+            const startW = videoPanelWidth
+            const onMove = (ev: MouseEvent) => {
+              if (!isVideoResizing.current) return
+              // Dragging left increases width, right decreases
+              const newW = Math.max(280, Math.min(800, startW - (ev.clientX - startX)))
+              setVideoPanelWidth(newW)
+            }
+            const onUp = () => {
+              isVideoResizing.current = false
+              document.removeEventListener('mousemove', onMove)
+              document.removeEventListener('mouseup', onUp)
+              document.body.style.cursor = ''
+              document.body.style.userSelect = ''
+            }
+            document.body.style.cursor = 'col-resize'
+            document.body.style.userSelect = 'none'
+            document.addEventListener('mousemove', onMove)
+            document.addEventListener('mouseup', onUp)
+          }}
+          style={{
+            width: 5,
+            cursor: 'col-resize',
+            backgroundColor: 'transparent',
+            flexShrink: 0,
+            position: 'relative',
+            zIndex: 10
+          }}
+        >
+          <div style={{
+            position: 'absolute',
+            left: 2,
+            top: 0,
+            bottom: 0,
+            width: 1,
+            backgroundColor: 'var(--color-border)'
+          }} />
+        </div>
+        <div style={{ ...styles.videoPanel, width: videoPanelWidth }}>
           {videoLoading && !mediaError && (
             <div style={styles.videoLoader}>
               <div style={styles.spinner} />
-              <div style={styles.loaderText}>Loading video...</div>
+              <div style={styles.loaderText}>{t.loadingVideo}</div>
             </div>
           )}
           {mediaError && (
             <div style={styles.videoLoader}>
-              <div style={styles.loaderText}>Cannot play video</div>
+              <div style={styles.loaderText}>{t.cannotPlayVideo}</div>
               <div style={{ ...styles.loaderText, fontSize: 11, maxWidth: 280, wordBreak: 'break-word' as const }}>{mediaError}</div>
             </div>
           )}
@@ -375,6 +436,7 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
             {...mediaEvents}
           />
         </div>
+        </>
       )}
 
       {/* Hidden audio element for audio-only files */}
@@ -437,29 +499,31 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0
   },
   statsBar: {
-    display: 'flex',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(5, 1fr)',
     gap: 8,
     padding: '0 var(--spacing-sm) var(--spacing-xs)',
-    flexShrink: 0,
-    overflowX: 'auto'
+    flexShrink: 0
   },
   statCard: {
-    flex: 1,
-    minWidth: 80,
-    padding: '8px 12px',
+    padding: '10px 12px',
     backgroundColor: 'var(--color-surface)',
     borderRadius: 'var(--radius-md)',
-    textAlign: 'center'
+    textAlign: 'left'
   },
   statLabel: {
     fontSize: 11,
     color: 'var(--color-secondary)',
-    marginBottom: 2
+    marginBottom: 4,
+    textAlign: 'left',
+    whiteSpace: 'nowrap'
   },
   statValue: {
     fontSize: 'var(--font-body)',
     fontWeight: 600,
-    fontFamily: 'ui-monospace, "SF Mono", monospace'
+    fontFamily: 'ui-monospace, "SF Mono", monospace',
+    textAlign: 'left',
+    whiteSpace: 'nowrap'
   },
   controls: {
     display: 'flex',
@@ -573,7 +637,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'flex-start',
     gap: 12,
-    padding: '8px 10px',
+    padding: '8px 12px',
     borderRadius: 'var(--radius-sm)',
     transition: 'background-color 150ms ease',
     position: 'relative'
@@ -618,15 +682,23 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     transition: 'var(--transition-fast)'
   },
+  actionButtonPrimary: {
+    padding: '6px 14px',
+    border: 'none',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-foreground)',
+    color: 'var(--color-background)',
+    fontSize: 'var(--font-button)',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'var(--transition-fast)'
+  },
   videoPanel: {
-    width: 400,
-    minWidth: 360,
     flexShrink: 0,
     backgroundColor: '#000',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderLeft: '1px solid var(--color-border)',
     position: 'relative' as const
   },
   videoElement: {

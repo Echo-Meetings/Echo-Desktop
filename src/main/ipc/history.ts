@@ -22,6 +22,10 @@ export function registerHistoryIpc(): void {
     }
   })
 
+  ipcMain.handle('history:rename', async (_event, id: string, newName: string) => {
+    return historyService.rename(id, newName)
+  })
+
   ipcMain.handle('history:getMediaUrl', async (_event, id: string) => {
     const entries = historyService.loadAll()
     const entry = entries.find((e) => e.id === id)

@@ -43,6 +43,25 @@ export interface HistorySegment {
   text: string
 }
 
+// Queue session types
+
+export type QueueSessionStatus = 'queued' | 'processing' | 'completed' | 'error'
+
+export interface QueueSession {
+  sessionId: string
+  fileName: string
+  filePath: string
+  status: QueueSessionStatus
+  progress: number            // 0-1
+  detectedLanguage: string | null
+  liveSegments: TranscriptSegment[]
+  error: string | null
+  result: TranscriptResult | null
+  mediaPath: string | null
+  entryId: string | null      // history entry ID after completion
+  addedAt: number
+}
+
 // App state types
 
 export type AppPhase =
