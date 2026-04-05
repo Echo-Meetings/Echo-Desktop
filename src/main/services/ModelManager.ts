@@ -24,13 +24,25 @@ export class ModelManager {
 
   isModelDownloaded(): boolean {
     if (!existsSync(this.modelPath)) return false
-    // Check file is reasonably sized (not a partial download)
+    // Check file is close to expected size (reject partial downloads)
     try {
       const stat = statSync(this.modelPath)
-      return stat.size > 100_000_000 // at least 100MB
+      // Must be at least 90% of expected size to be considered complete
+      return stat.size >= MODEL_SIZE_BYTES * 0.9
     } catch {
       return false
     }
+  }
+
+  /**
+   * Delete a corrupted/partial model so it will be re-downloaded.
+   */
+  deleteModel(): void {
+    try {
+      if (existsSync(this.modelPath)) {
+        require('fs').unlinkSync(this.modelPath)
+      }
+    } catch { /* ignore */ }
   }
 
   async downloadModel(onProgress: (fraction: number) => void): Promise<string> {
@@ -76,6 +88,15 @@ export class ModelManager {
 
           fileStream.on('finish', () => {
             fileStream.close()
+            // Verify download is complete (not truncated)
+            try {
+              const finalSize = statSync(this.modelPath).size
+              if (finalSize < MODEL_SIZE_BYTES * 0.9) {
+                try { require('fs').unlinkSync(this.modelPath) } catch { /* ok */ }
+                reject(new Error(`Model download incomplete: got ${Math.round(finalSize / 1e6)}MB, expected ~${Math.round(MODEL_SIZE_BYTES / 1e6)}MB`))
+                return
+              }
+            } catch { /* stat failed, let it pass */ }
             onProgress(1)
             resolve(this.modelPath)
           })

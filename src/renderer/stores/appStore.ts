@@ -4,11 +4,13 @@ import type {
   HistoryEntry,
   HistoryFilter,
   TranscriptSegment,
-  TranscriptResult
+  TranscriptResult,
+  QueueSession,
+  QueueSessionStatus
 } from '@/types/models'
 
 interface AppStore {
-  // Phase state machine
+  // Phase state machine (for non-queue views)
   phase: AppPhase
   setPhase: (phase: AppPhase) => void
 
@@ -18,7 +20,19 @@ interface AppStore {
   setModelReady: (ready: boolean) => void
   setModelDownloadProgress: (progress: number) => void
 
-  // Transcription streaming state
+  // Queue sessions
+  queueSessions: QueueSession[]
+  focusedSessionId: string | null
+  enqueueFiles: (files: Array<{ sessionId: string; fileName: string; filePath: string }>) => void
+  updateSessionStatus: (sessionId: string, status: QueueSessionStatus) => void
+  updateSessionProgress: (sessionId: string, progress: number, language: string | null) => void
+  appendSessionSegments: (sessionId: string, segments: TranscriptSegment[]) => void
+  completeSession: (sessionId: string, result: TranscriptResult, mediaPath: string | null, entryId: string | null) => void
+  failSession: (sessionId: string, error: string) => void
+  removeSession: (sessionId: string) => void
+  setFocusedSessionId: (id: string | null) => void
+
+  // Legacy transcription streaming state (kept for ProcessingView compat)
   transcriptionProgress: number
   detectedLanguage: string | null
   liveSegments: TranscriptSegment[]
@@ -40,8 +54,10 @@ interface AppStore {
   setHistorySearch: (search: string) => void
 
   // Settings
+  uiLanguage: 'en' | 'ru' | 'de' | 'fr'
   languageOverride: string
   hasCompletedOnboarding: boolean
+  setUiLanguage: (lang: 'en' | 'ru' | 'de' | 'fr') => void
   setLanguageOverride: (lang: string) => void
   setHasCompletedOnboarding: (done: boolean) => void
 
@@ -67,7 +83,83 @@ export const useAppStore = create<AppStore>((set) => ({
   setModelReady: (ready) => set({ isModelReady: ready }),
   setModelDownloadProgress: (progress) => set({ modelDownloadProgress: progress }),
 
-  // Transcription streaming
+  // Queue sessions
+  queueSessions: [],
+  focusedSessionId: null,
+
+  enqueueFiles: (files) =>
+    set((state) => ({
+      queueSessions: [
+        ...state.queueSessions,
+        ...files.map((f) => ({
+          sessionId: f.sessionId,
+          fileName: f.fileName,
+          filePath: f.filePath,
+          status: 'queued' as const,
+          progress: 0,
+          detectedLanguage: null,
+          liveSegments: [],
+          error: null,
+          result: null,
+          mediaPath: null,
+          entryId: null,
+          addedAt: Date.now()
+        }))
+      ]
+    })),
+
+  updateSessionStatus: (sessionId, status) =>
+    set((state) => ({
+      queueSessions: state.queueSessions.map((s) =>
+        s.sessionId === sessionId ? { ...s, status } : s
+      )
+    })),
+
+  updateSessionProgress: (sessionId, progress, language) =>
+    set((state) => ({
+      queueSessions: state.queueSessions.map((s) =>
+        s.sessionId === sessionId
+          ? { ...s, progress, detectedLanguage: language || s.detectedLanguage }
+          : s
+      )
+    })),
+
+  appendSessionSegments: (sessionId, segments) =>
+    set((state) => ({
+      queueSessions: state.queueSessions.map((s) =>
+        s.sessionId === sessionId
+          ? { ...s, liveSegments: [...s.liveSegments, ...segments] }
+          : s
+      )
+    })),
+
+  completeSession: (sessionId, result, mediaPath, entryId) =>
+    set((state) => ({
+      queueSessions: state.queueSessions.map((s) =>
+        s.sessionId === sessionId
+          ? { ...s, status: 'completed' as const, result, mediaPath, entryId, liveSegments: [] }
+          : s
+      )
+    })),
+
+  failSession: (sessionId, error) =>
+    set((state) => ({
+      queueSessions: state.queueSessions.map((s) =>
+        s.sessionId === sessionId
+          ? { ...s, status: 'error' as const, error }
+          : s
+      )
+    })),
+
+  removeSession: (sessionId) =>
+    set((state) => ({
+      queueSessions: state.queueSessions.filter((s) => s.sessionId !== sessionId),
+      focusedSessionId: state.focusedSessionId === sessionId ? null : state.focusedSessionId
+    })),
+
+  setFocusedSessionId: (id) => set({ focusedSessionId: id, viewingEntry: null, selectedEntryId: null }),
+
+  // Legacy transcription streaming
   transcriptionProgress: 0,
   detectedLanguage: null,
   liveSegments: [],
@@ -85,13 +177,15 @@ export const useAppStore = create<AppStore>((set) => ({
   historySearch: '',
   setHistoryEntries: (entries) => set({ historyEntries: entries }),
   setSelectedEntryId: (id) => set({ selectedEntryId: id }),
-  setViewingEntry: (entry) => set({ viewingEntry: entry }),
+  setViewingEntry: (entry) => set({ viewingEntry: entry, focusedSessionId: null }),
   setHistoryFilter: (filter) => set({ historyFilter: filter }),
   setHistorySearch: (search) => set({ historySearch: search }),
 
   // Settings
+  uiLanguage: 'en',
   languageOverride: 'auto',
   hasCompletedOnboarding: false,
+  setUiLanguage: (lang) => set({ uiLanguage: lang }),
   setLanguageOverride: (lang) => set({ languageOverride: lang }),
   setHasCompletedOnboarding: (done) => set({ hasCompletedOnboarding: done }),
 
@@ -105,6 +199,7 @@ export const useAppStore = create<AppStore>((set) => ({
       phase: { type: 'empty' },
       viewingEntry: null,
       selectedEntryId: null,
+      focusedSessionId: null,
       detectedLanguage: null,
       liveSegments: [],
       transcriptionProgress: 0

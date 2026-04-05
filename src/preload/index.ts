@@ -5,12 +5,22 @@ export type ElectronAPI = typeof electronAPI
 const electronAPI = {
   // File operations
   file: {
-    openPicker: (): Promise<string | null> => ipcRenderer.invoke('file:openPicker'),
+    openPicker: (): Promise<string[]> => ipcRenderer.invoke('file:openPicker'),
     validate: (filePath: string): Promise<{ status: string; filePath?: string }> =>
       ipcRenderer.invoke('file:validate', filePath)
   },
 
-  // Transcription
+  // Queue-based transcription
+  queue: {
+    enqueue: (items: Array<{ sessionId: string; filePath: string; language: string | null }>): Promise<void> =>
+      ipcRenderer.invoke('queue:enqueue', items),
+    cancel: (sessionId: string): Promise<void> =>
+      ipcRenderer.invoke('queue:cancel', sessionId),
+    cancelAll: (): Promise<void> =>
+      ipcRenderer.invoke('queue:cancelAll')
+  },
+
+  // Legacy transcription API (backward compat)
   transcription: {
     start: (filePath: string, language: string | null): Promise<void> =>
       ipcRenderer.invoke('transcription:start', filePath, language),
@@ -23,6 +33,8 @@ const electronAPI = {
     delete: (id: string): Promise<void> => ipcRenderer.invoke('history:delete', id),
     deleteMultiple: (ids: string[]): Promise<void> =>
       ipcRenderer.invoke('history:deleteMultiple', ids),
+    rename: (id: string, newName: string): Promise<unknown> =>
+      ipcRenderer.invoke('history:rename', id, newName),
     getMediaUrl: (id: string): Promise<string | null> =>
       ipcRenderer.invoke('history:getMediaUrl', id),
     getThumbnail: (id: string): Promise<string | null> =>
@@ -64,7 +76,8 @@ const electronAPI = {
       platform: string
     }> => ipcRenderer.invoke('deps:getStatus'),
     downloadWhisper: (): Promise<void> => ipcRenderer.invoke('deps:downloadWhisper'),
-    downloadFFmpeg: (): Promise<void> => ipcRenderer.invoke('deps:downloadFFmpeg')
+    downloadFFmpeg: (): Promise<void> => ipcRenderer.invoke('deps:downloadFFmpeg'),
+    ensureAll: (): Promise<void> => ipcRenderer.invoke('deps:ensureAll')
   },
 
   // Settings
@@ -78,7 +91,14 @@ const electronAPI = {
     openDirectoryPicker: (): Promise<string | null> =>
       ipcRenderer.invoke('settings:openDirectoryPicker'),
     getStorageSize: (): Promise<number> => ipcRenderer.invoke('settings:getStorageSize'),
-    revealStorage: (): Promise<void> => ipcRenderer.invoke('settings:revealStorage')
+    revealStorage: (): Promise<void> => ipcRenderer.invoke('settings:revealStorage'),
+    showPrivacyPolicy: (locale?: string): Promise<boolean> => ipcRenderer.invoke('settings:showPrivacyPolicy', locale)
+  },
+
+  // App lifecycle
+  app: {
+    setActiveSessions: (active: boolean): Promise<void> =>
+      ipcRenderer.invoke('app:setActiveSessions', active)
   },
 
   // Platform info
@@ -90,10 +110,19 @@ const electronAPI = {
   // Event listeners (for streaming data from main process)
   on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
     const allowedChannels = [
+      // Queue events
+      'queue:sessionStarted',
+      'queue:sessionProgress',
+      'queue:sessionSegment',
+      'queue:sessionCompleted',
+      'queue:sessionError',
+      'queue:sessionRemoved',
+      // Legacy transcription events
       'transcription:progress',
       'transcription:segment',
       'transcription:complete',
       'transcription:error',
+      // Model/deps events
       'model:downloadProgress',
       'model:loaded',
       'deps:whisperDownloadProgress',
@@ -102,6 +131,10 @@ const electronAPI = {
       'deps:ffmpegDownloadProgress',
       'deps:ffmpegReady',
       'deps:ffmpegError',
+      'deps:status',
+      'deps:allReady',
+      'deps:error',
+      // Theme
       'theme:changed'
     ]
     if (!allowedChannels.includes(channel)) {

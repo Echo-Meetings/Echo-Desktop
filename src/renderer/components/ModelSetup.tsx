@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '@/stores/appStore'
+import { useT } from '@/i18n'
 
 type SetupStep = 'checking' | 'ffmpeg' | 'whisper' | 'model' | 'done'
 
@@ -10,6 +11,7 @@ interface StepInfo {
 }
 
 export function ModelSetup() {
+  const t = useT()
   const { modelDownloadProgress } = useAppStore()
   const [currentStep, setCurrentStep] = useState<SetupStep>('checking')
   const [ffmpegProgress, setFfmpegProgress] = useState(0)
@@ -86,16 +88,22 @@ export function ModelSetup() {
 
   const modelPercent = Math.round(modelDownloadProgress * 100)
 
-  const steps: StepInfo[] = buildStepInfo(currentStep, ffmpegProgress, whisperProgress, modelPercent)
+  const stepLabels: Record<string, string> = {
+    ffmpeg: t.ffmpegLabel,
+    whisper: t.whisperLabel,
+    model: t.modelLabel
+  }
+
+  const steps: StepInfo[] = buildStepInfo(currentStep, ffmpegProgress, whisperProgress, modelPercent, stepLabels)
 
   // Overall progress across all steps
   const totalProgress = Math.round(steps.reduce((sum, s) => sum + s.progress, 0) / steps.length)
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>Setting up Echo</h1>
+      <h1 style={styles.title}>{t.settingUpEcho}</h1>
       <p style={styles.subtitle}>
-        Downloading required components. This only happens once.
+        {t.downloadingComponents}
       </p>
 
       {/* Step list */}
@@ -137,7 +145,7 @@ export function ModelSetup() {
         <div style={styles.errorBox}>
           <p style={styles.errorText}>{error}</p>
           <button style={styles.retryBtn} onClick={() => { setError(null); runSetup() }}>
-            Retry
+            {t.retry}
           </button>
         </div>
       )}
@@ -149,14 +157,10 @@ function buildStepInfo(
   currentStep: SetupStep,
   ffmpegProgress: number,
   whisperProgress: number,
-  modelPercent: number
+  modelPercent: number,
+  stepLabels: Record<string, string>
 ): StepInfo[] {
   const stepOrder: SetupStep[] = ['ffmpeg', 'whisper', 'model']
-  const stepLabels: Record<string, string> = {
-    ffmpeg: 'FFmpeg (audio processing)',
-    whisper: 'Whisper CLI (speech recognition)',
-    model: 'Speech model (~1.5 GB)'
-  }
 
   const currentIdx = stepOrder.indexOf(currentStep)
 

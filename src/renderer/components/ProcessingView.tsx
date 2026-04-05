@@ -1,15 +1,19 @@
 import { useRef, useEffect, useState } from 'react'
 import { useAppStore } from '@/stores/appStore'
 import { formatTimestamp } from '@/types/models'
+import type { QueueSession } from '@/types/models'
+import { useT, fmt } from '@/i18n'
 
 interface ProcessingViewProps {
-  fileName: string
+  session: QueueSession
 }
 
-export function ProcessingView({ fileName }: ProcessingViewProps) {
-  const { transcriptionProgress, detectedLanguage, liveSegments } = useAppStore()
+export function ProcessingView({ session }: ProcessingViewProps) {
+  const t = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [visibleCount, setVisibleCount] = useState(0)
+
+  const { fileName, progress, detectedLanguage, liveSegments, status } = session
 
   // Smooth scroll to latest segment
   useEffect(() => {
@@ -31,59 +35,96 @@ export function ProcessingView({ fileName }: ProcessingViewProps) {
     }
   }, [liveSegments.length, visibleCount])
 
-  const handleCancel = async () => {
-    if (window.confirm('Stop transcription? Progress will be lost.')) {
-      await window.electronAPI.transcription.cancel()
-      useAppStore.getState().resetToDropZone()
-    }
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
+  const handleCancel = () => {
+    setShowCancelConfirm(true)
   }
 
-  const percent = transcriptionProgress > 0 ? Math.min(Math.round(transcriptionProgress * 100), 100) : null
+  const confirmCancel = async () => {
+    await window.electronAPI.queue.cancel(session.sessionId)
+    useAppStore.getState().removeSession(session.sessionId)
+    useAppStore.getState().setFocusedSessionId(null)
+    setShowCancelConfirm(false)
+  }
+
+  const percent = progress > 0 ? Math.min(Math.round(progress * 100), 100) : null
+  const isQueued = status === 'queued'
 
   return (
     <div style={styles.container}>
       <style>{keyframes}</style>
 
-      {/* Left panel — progress info */}
+      {/* Left panel -- progress info */}
       <div style={styles.leftPanel}>
         <div style={styles.thumbnailPlaceholder}>
-          <div style={styles.thumbnailIcon}>〰</div>
+          <div style={styles.thumbnailIcon}>
+            {isQueued ? '⏳' : '〰'}
+          </div>
         </div>
 
         <div style={styles.fileName}>{fileName}</div>
 
-        <div style={styles.progressSection}>
-          <div style={styles.progressTrack}>
-            <div
-              style={{
-                ...styles.progressFill,
-                width: percent !== null ? `${percent}%` : '30%',
-                animation: percent === null ? 'indeterminate 1.5s ease-in-out infinite' : 'none'
-              }}
-            />
+        {isQueued ? (
+          <div style={styles.queuedLabel}>{t.waitingInQueue}</div>
+        ) : (
+          <div style={styles.progressSection}>
+            <div style={styles.progressTrack}>
+              <div
+                style={{
+                  ...styles.progressFill,
+                  width: percent !== null ? `${percent}%` : '30%',
+                  animation: percent === null ? 'indeterminate 1.5s ease-in-out infinite' : 'none'
+                }}
+              />
+            </div>
+            <div style={styles.progressLabel}>
+              {percent !== null ? `${percent}%` : t.preparing}
+            </div>
           </div>
-          <div style={styles.progressLabel}>
-            {percent !== null ? `${percent}%` : 'Preparing…'}
-          </div>
-        </div>
+        )}
 
         {detectedLanguage && (
           <div style={styles.languageBadge}>{detectedLanguage}</div>
         )}
 
         <button onClick={handleCancel} style={styles.cancelButton}>
-          Cancel
+          {t.cancel}
         </button>
       </div>
 
-      {/* Right panel — live transcript */}
+      {/* Cancel confirmation */}
+      {showCancelConfirm && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modal}>
+            <div style={styles.modalTitle}>{t.cancelTranscription}?</div>
+            <div style={styles.modalText}>
+              {fmt(t.cancelTranscriptionConfirm, { name: fileName })}
+            </div>
+            <div style={styles.modalActions}>
+              <button onClick={() => setShowCancelConfirm(false)} style={styles.modalKeep}>
+                {t.keepGoing}
+              </button>
+              <button onClick={confirmCancel} style={styles.modalCancel}>
+                {t.cancelTranscription}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Right panel -- live transcript */}
       <div style={styles.rightPanel}>
         {liveSegments.length === 0 ? (
           <div style={styles.emptyTranscript}>
             <div style={styles.pulsingDot} />
-            <div style={styles.emptyText}>Transcribing…</div>
+            <div style={styles.emptyText}>
+              {isQueued ? t.queuedStatus : t.transcribing}
+            </div>
             <div style={styles.emptyHint}>
-              Live transcript will appear here as Echo processes your file.
+              {isQueued
+                ? t.queuedHint
+                : t.transcribingHint}
             </div>
           </div>
         ) : (
@@ -103,7 +144,6 @@ export function ProcessingView({ fileName }: ProcessingViewProps) {
                 <span style={styles.segmentText}>{segment.text}</span>
               </div>
             ))}
-            {/* Typing indicator at bottom */}
             {percent !== null && percent < 100 && (
               <div style={styles.typingIndicator}>
                 <span style={styles.typingDot} />
@@ -188,6 +228,11 @@ const styles: Record<string, React.CSSProperties> = {
     display: '-webkit-box',
     WebkitLineClamp: 2,
     WebkitBoxOrient: 'vertical'
+  },
+  queuedLabel: {
+    fontSize: 'var(--font-body)',
+    color: 'var(--color-secondary)',
+    fontStyle: 'italic'
   },
   progressSection: {
     width: '100%',
@@ -302,5 +347,57 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'var(--color-secondary)',
     animation: 'dotBounce 0.8s ease-in-out infinite',
     display: 'inline-block'
+  },
+  modalOverlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 200
+  },
+  modal: {
+    backgroundColor: 'var(--color-surface)',
+    borderRadius: 12,
+    padding: 20,
+    width: 340,
+    boxShadow: '0 12px 40px rgba(0,0,0,0.3)'
+  },
+  modalTitle: {
+    fontSize: 15,
+    fontWeight: 600,
+    marginBottom: 8
+  },
+  modalText: {
+    fontSize: 13,
+    color: 'var(--color-secondary)',
+    marginBottom: 20,
+    lineHeight: 1.5
+  },
+  modalActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 8
+  },
+  modalKeep: {
+    padding: '7px 16px',
+    border: '1px solid var(--color-border)',
+    borderRadius: 6,
+    backgroundColor: 'var(--color-surface)',
+    color: 'var(--color-foreground)',
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer'
+  },
+  modalCancel: {
+    padding: '7px 16px',
+    border: 'none',
+    borderRadius: 6,
+    backgroundColor: 'var(--color-destructive)',
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer'
   }
 }

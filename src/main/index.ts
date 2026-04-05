@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, nativeTheme, protocol, net } from 'electron'
+import { app, BrowserWindow, shell, nativeTheme, protocol, net, dialog, ipcMain, nativeImage } from 'electron'
 import { join, extname } from 'path'
 import { pathToFileURL } from 'url'
 import { registerFileIpc } from './ipc/file'
@@ -10,8 +10,11 @@ import { registerPlaybackIpc } from './ipc/playback'
 import { registerModelIpc } from './ipc/model'
 
 let mainWindow: BrowserWindow | null = null
+let hasActiveSessions = false
 
 function createWindow(): void {
+  const iconPath = join(__dirname, '../../resources/icon.png')
+
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 700,
@@ -19,6 +22,7 @@ function createWindow(): void {
     minHeight: 520,
     show: false,
     title: 'Echo',
+    icon: iconPath,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#111111' : '#ffffff',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -31,6 +35,28 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+    if (process.env['ELECTRON_RENDERER_URL']) {
+      mainWindow?.webContents.openDevTools({ mode: 'detach' })
+    }
+  })
+
+  // Warn before closing if transcriptions are active
+  mainWindow.on('close', (e) => {
+    if (hasActiveSessions) {
+      const choice = dialog.showMessageBoxSync(mainWindow!, {
+        type: 'warning',
+        buttons: ['Cancel', 'Quit Anyway'],
+        defaultId: 0,
+        cancelId: 0,
+        title: 'Transcription in progress',
+        message: 'One or more files are still being transcribed.',
+        detail: 'If you quit now, progress will be lost. Are you sure?'
+      })
+      if (choice === 0) {
+        e.preventDefault()
+        return
+      }
+    }
   })
 
   // Open external links in default browser
@@ -90,6 +116,11 @@ app.whenReady().then(() => {
     return net.fetch(fileUrl, { headers: request.headers })
   })
 
+  // Track active transcription sessions for close warning
+  ipcMain.handle('app:setActiveSessions', (_event, active: boolean) => {
+    hasActiveSessions = active
+  })
+
   // Register all IPC handlers
   registerFileIpc()
   registerHistoryIpc()
@@ -98,6 +129,14 @@ app.whenReady().then(() => {
   registerTranscriptionIpc()
   registerPlaybackIpc()
   registerModelIpc()
+
+  // Set dock icon on macOS (ensures custom icon in dev mode too)
+  if (process.platform === 'darwin') {
+    const dockIcon = nativeImage.createFromPath(join(__dirname, '../../resources/icon.png'))
+    if (!dockIcon.isEmpty()) {
+      app.dock.setIcon(dockIcon)
+    }
+  }
 
   createWindow()
 

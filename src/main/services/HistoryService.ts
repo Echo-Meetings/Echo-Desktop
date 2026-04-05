@@ -1,6 +1,6 @@
 import {
   existsSync, mkdirSync, writeFileSync, readFileSync,
-  readdirSync, unlinkSync, copyFileSync, statSync
+  readdirSync, unlinkSync, copyFileSync, statSync, renameSync
 } from 'fs'
 import { join, extname, basename } from 'path'
 import { app } from 'electron'
@@ -187,6 +187,49 @@ export class HistoryService {
 
     // Delete JSON
     if (existsSync(jsonPath)) unlinkSync(jsonPath)
+  }
+
+  /**
+   * Rename a history entry's fileName.
+   */
+  rename(id: string, newName: string): HistoryEntry | null {
+    const jsonPath = join(this.echoDir, `${id}.json`)
+    if (!existsSync(jsonPath)) return null
+
+    // Sanitize filename: strip characters illegal on Windows (< > : " / \ | ? *)
+    // and trim leading/trailing dots and spaces (Windows rejects those too)
+    const sanitized = newName
+      .replace(/[<>:"/\\|?*]/g, '')
+      .replace(/^[\s.]+|[\s.]+$/g, '')
+    if (!sanitized) return null
+
+    try {
+      const data = readFileSync(jsonPath, 'utf-8')
+      const entry = JSON.parse(data) as HistoryEntry
+
+      // Rename the transcript txt file
+      const oldBaseName = entry.fileName.replace(/\.[^.]+$/, '')
+      const oldTxtPath = join(this.rootDir, `${oldBaseName}_transcript.txt`)
+
+      entry.fileName = sanitized
+
+      const newBaseName = sanitized.replace(/\.[^.]+$/, '')
+      const newTxtPath = join(this.rootDir, `${newBaseName}_transcript.txt`)
+
+      if (existsSync(oldTxtPath) && oldTxtPath !== newTxtPath) {
+        try {
+          renameSync(oldTxtPath, newTxtPath)
+        } catch {
+          // Non-critical — transcript file may not exist
+        }
+      }
+
+      // Save updated entry
+      writeFileSync(jsonPath, JSON.stringify(entry, null, 2), 'utf-8')
+      return entry
+    } catch {
+      return null
+    }
   }
 
   /**

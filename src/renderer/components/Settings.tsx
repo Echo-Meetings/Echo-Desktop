@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '@/stores/appStore'
 import { SUPPORTED_LANGUAGES } from '@/types/models'
+import { useT } from '@/i18n'
+import { UI_LANGUAGES } from '@/i18n/translations'
+import { ComboBox } from './ComboBox'
+import { Button } from './Button'
 
 interface SettingsProps {
   onClose: () => void
 }
 
 export function Settings({ onClose }: SettingsProps) {
-  const { languageOverride, setLanguageOverride, setHasCompletedOnboarding } = useAppStore()
+  const t = useT()
+  const { languageOverride, setLanguageOverride, setHasCompletedOnboarding, uiLanguage, setUiLanguage } = useAppStore()
   const [storageDir, setStorageDir] = useState('')
   const [storageSize, setStorageSize] = useState(0)
   const [privacyConsent, setPrivacyConsent] = useState(false)
@@ -41,6 +46,10 @@ export function Settings({ onClose }: SettingsProps) {
     onClose()
   }
 
+  const handleViewPrivacy = () => {
+    window.electronAPI.settings.showPrivacyPolicy(uiLanguage)
+  }
+
   const formatSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -54,87 +63,114 @@ export function Settings({ onClose }: SettingsProps) {
         {/* Title bar */}
         <div style={styles.titleBar}>
           <button onClick={onClose} style={styles.closeButton} />
-          <span style={styles.titleText}>Echo Settings</span>
+          <span style={styles.titleText}>{t.settingsTitle}</span>
         </div>
 
         <div style={styles.content}>
-          {/* Transcription */}
-          <div style={styles.sectionTitle}>Transcription</div>
+          {/* Section: Interface */}
+          <div style={styles.sectionHeader}>{t.interfaceSection}</div>
           <div style={styles.card}>
-            <div style={styles.row}>
-              <span style={styles.rowLabel}>Language</span>
-              <select
+            <div style={styles.cardRow}>
+              <div>
+                <div style={styles.rowLabel}>{t.language}</div>
+                <div style={styles.rowDesc}>{t.interfaceLanguageDesc}</div>
+              </div>
+              <ComboBox
+                options={UI_LANGUAGES.map(l => ({ value: l.code, label: l.label }))}
+                value={uiLanguage}
+                onChange={(code) => {
+                  setUiLanguage(code as any)
+                  window.electronAPI.settings.set('uiLanguage', code)
+                }}
+                style={{ minWidth: 140 }}
+              />
+            </div>
+          </div>
+
+          {/* Section: Transcription */}
+          <div style={styles.sectionHeader}>{t.transcriptionSection}</div>
+          <div style={styles.card}>
+            <div style={styles.cardRow}>
+              <div>
+                <div style={styles.rowLabel}>{t.language}</div>
+                <div style={styles.rowDesc}>
+                  {t.transcriptionLanguageDesc}
+                </div>
+              </div>
+              <ComboBox
+                options={SUPPORTED_LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
                 value={languageOverride}
-                onChange={(e) => handleLanguageChange(e.target.value)}
-                style={styles.select}
-              >
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={styles.divider} />
-            <div style={styles.hint}>
-              When set to Auto-detect, Echo will automatically identify the spoken language.
+                onChange={handleLanguageChange}
+                style={{ minWidth: 160 }}
+              />
             </div>
           </div>
 
-          {/* Storage */}
-          <div style={styles.sectionTitle}>Storage</div>
+          {/* Section: Storage */}
+          <div style={styles.sectionHeader}>{t.storageSection}</div>
           <div style={styles.card}>
-            <div style={styles.row}>
-              <span style={styles.rowLabel}>Transcripts & media</span>
-              <span style={styles.rowValue}>{storageDir}</span>
-            </div>
-            <div style={styles.rowButtons}>
-              <button onClick={handleRevealStorage} style={styles.actionBtn}>
-                Reveal in Finder
-              </button>
-              <button onClick={handleChangeStorage} style={styles.actionBtn}>
-                Change...
-              </button>
-            </div>
-            <div style={styles.divider} />
-            <div style={styles.row}>
-              <span style={styles.rowLabel}>Storage used</span>
-              <span style={styles.rowValue}>{formatSize(storageSize)}</span>
-            </div>
-          </div>
-
-          {/* Privacy & Legal */}
-          <div style={styles.sectionTitle}>Privacy & Legal</div>
-          <div style={styles.card}>
-            <div style={styles.rowButtons}>
-              <button onClick={() => {}} style={styles.actionBtn}>
-                View Privacy Policy
-              </button>
-            </div>
-            <div style={styles.divider} />
-            <div style={styles.row}>
-              <span style={styles.rowLabel}>Privacy consent</span>
-              <span style={{ ...styles.rowValue, color: privacyConsent ? '#22c55e' : 'var(--color-secondary)' }}>
-                {privacyConsent ? 'Accepted' : 'Not accepted'}
-              </span>
-            </div>
-          </div>
-
-          {/* About */}
-          <div style={styles.sectionTitle}>About</div>
-          <div style={styles.card}>
-            <div style={styles.row}>
-              <span style={styles.rowLabel}>Third-party software</span>
-              <div style={styles.aboutText}>
-                <div>whisper.cpp (MIT) — Speech recognition</div>
-                <div>ffmpeg 8.1 (GPL) — Video conversion</div>
+            <div style={styles.cardRow}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={styles.rowLabel}>{t.transcriptsAndMedia}</div>
+                <div style={styles.storagePath}>{storageDir}</div>
               </div>
             </div>
-            <div style={styles.divider} />
-            <div style={styles.rowButtons}>
-              <button onClick={handleShowOnboarding} style={styles.actionBtn}>
-                Show Onboarding Again
-              </button>
+            <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
+              <Button size="small" onClick={handleRevealStorage}>{t.revealInFinder}</Button>
+              <Button size="small" onClick={handleChangeStorage}>{t.change}</Button>
+            </div>
+            <div style={styles.cardDivider} />
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.storageUsed}</div>
+              <div style={styles.rowValue}>{formatSize(storageSize)}</div>
+            </div>
+          </div>
+
+          {/* Section: Privacy & Legal */}
+          <div style={styles.sectionHeader}>{t.privacySection}</div>
+          <div style={styles.card}>
+            <div style={styles.rowDesc}>
+              {t.privacyDesc}
+            </div>
+            <div style={styles.cardDivider} />
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.privacyConsent}</div>
+              <div style={{
+                ...styles.rowValue,
+                color: privacyConsent ? '#22c55e' : 'var(--color-secondary)',
+              }}>
+                {privacyConsent ? t.accepted : t.notAccepted}
+              </div>
+            </div>
+            <div style={styles.cardDivider} />
+            <div style={{ padding: '4px 0' }}>
+              <Button size="small" onClick={handleViewPrivacy}>{t.viewPrivacyPolicy}</Button>
+            </div>
+          </div>
+
+          {/* Section: About */}
+          <div style={styles.sectionHeader}>{t.aboutSection}</div>
+          <div style={styles.card}>
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.version}</div>
+              <div style={styles.rowValue}>1.0.0</div>
+            </div>
+            <div style={styles.cardDivider} />
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.thirdPartySoftware}</div>
+              <div style={{
+                fontSize: 12,
+                color: 'var(--color-secondary)',
+                textAlign: 'right' as const,
+                lineHeight: 1.6,
+              }}>
+                <div>{t.whisperCredit}</div>
+                <div>{t.ffmpegCredit}</div>
+              </div>
+            </div>
+            <div style={styles.cardDivider} />
+            <div style={{ padding: '4px 0' }}>
+              <Button size="small" onClick={handleShowOnboarding}>{t.showOnboarding}</Button>
             </div>
           </div>
         </div>
@@ -152,7 +188,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-start',
     justifyContent: 'center',
     paddingTop: 60,
-    zIndex: 300
+    zIndex: 300,
   },
   window: {
     width: 560,
@@ -162,7 +198,7 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
     overflow: 'hidden',
     display: 'flex',
-    flexDirection: 'column'
+    flexDirection: 'column',
   },
   titleBar: {
     display: 'flex',
@@ -170,7 +206,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     padding: '12px 16px',
     borderBottom: '1px solid var(--color-border)',
-    flexShrink: 0
+    flexShrink: 0,
   },
   closeButton: {
     width: 12,
@@ -179,90 +215,68 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#ff5f57',
     border: 'none',
     cursor: 'pointer',
-    flexShrink: 0
+    flexShrink: 0,
   },
   titleText: {
     fontSize: 'var(--font-body)',
     fontWeight: 600,
     flex: 1,
     textAlign: 'center',
-    marginRight: 22
+    marginRight: 22,
   },
   content: {
-    padding: '16px 20px 24px',
+    padding: 16,
     overflowY: 'auto',
-    flex: 1
+    flex: 1,
   },
-  sectionTitle: {
-    fontSize: 'var(--font-body)',
-    fontWeight: 700,
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--color-secondary)',
     marginTop: 16,
-    marginBottom: 8
+    marginBottom: 6,
+    paddingLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   card: {
     backgroundColor: 'var(--color-surface)',
     borderRadius: 'var(--radius-lg)',
+    border: '1px solid var(--color-border)',
     padding: '12px 16px',
-    marginBottom: 4
+    marginBottom: 10,
   },
-  row: {
+  cardRow: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '6px 0',
-    gap: 12
+    gap: 12,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: 'var(--color-border)',
+    margin: '4px 0',
   },
   rowLabel: {
     fontSize: 'var(--font-body)',
-    flexShrink: 0
+    flexShrink: 0,
+  },
+  rowDesc: {
+    fontSize: 12,
+    color: 'var(--color-secondary)',
+    lineHeight: 1.5,
+    marginTop: 2,
   },
   rowValue: {
     fontSize: 'var(--font-body)',
     color: 'var(--color-secondary)',
-    textAlign: 'right',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap'
   },
-  rowButtons: {
-    display: 'flex',
-    gap: 8,
-    padding: '6px 0',
-    justifyContent: 'flex-start'
-  },
-  actionBtn: {
-    padding: '6px 14px',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)',
-    fontSize: 'var(--font-caption)',
-    cursor: 'pointer'
-  },
-  select: {
-    padding: '4px 8px',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)',
-    fontSize: 'var(--font-body)',
-    cursor: 'pointer',
-    outline: 'none'
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'var(--color-border)',
-    margin: '4px 0'
-  },
-  hint: {
-    fontSize: 'var(--font-caption)',
+  storagePath: {
+    fontSize: 12,
     color: 'var(--color-secondary)',
-    padding: '4px 0'
+    fontFamily: "'SF Mono', 'Menlo', monospace",
+    marginTop: 2,
+    wordBreak: 'break-all',
   },
-  aboutText: {
-    fontSize: 'var(--font-caption)',
-    color: 'var(--color-secondary)',
-    textAlign: 'right',
-    lineHeight: 1.6
-  }
 }

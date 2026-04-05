@@ -1,10 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { ModelManager } from '../services/ModelManager'
-import { WhisperBinaryManager } from '../services/WhisperBinaryManager'
 import { locateWhisperCli, locateFFmpeg, locateFFprobe } from '../services/BinaryPaths'
-
-const modelManager = new ModelManager()
-const whisperBinaryManager = new WhisperBinaryManager()
+import { modelManager, whisperBinaryManager } from './transcription'
 
 export function registerModelIpc(): void {
   ipcMain.handle('model:getStatus', async () => {
@@ -24,6 +20,7 @@ export function registerModelIpc(): void {
     }
 
     try {
+      modelManager.deleteModel()
       await modelManager.downloadModel((fraction) => {
         win.webContents.send('model:downloadProgress', fraction)
       })
@@ -33,7 +30,7 @@ export function registerModelIpc(): void {
     }
   })
 
-  // --- Dependency status: whisper-cli + ffmpeg ---
+  // --- Dependency status ---
 
   ipcMain.handle('deps:getStatus', async () => {
     return {
@@ -76,6 +73,45 @@ export function registerModelIpc(): void {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'FFmpeg download failed'
       win.webContents.send('deps:ffmpegError', message)
+    }
+  })
+
+  ipcMain.handle('deps:ensureAll', async () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return
+
+    try {
+      if (!locateFFmpeg() && whisperBinaryManager.canAutoDownloadFFmpeg()) {
+        win.webContents.send('deps:status', 'Downloading ffmpeg...')
+        await whisperBinaryManager.downloadFFmpeg((fraction) => {
+          win.webContents.send('deps:ffmpegDownloadProgress', fraction)
+        })
+        win.webContents.send('deps:ffmpegReady')
+      }
+
+      if (!locateWhisperCli() && whisperBinaryManager.canAutoDownload()) {
+        win.webContents.send('deps:status', 'Downloading whisper-cli...')
+        await whisperBinaryManager.download((fraction) => {
+          win.webContents.send('deps:whisperDownloadProgress', fraction)
+        })
+        win.webContents.send('deps:whisperReady')
+      }
+
+      if (!modelManager.isModelDownloaded()) {
+        modelManager.deleteModel()
+        win.webContents.send('deps:status', 'Downloading AI model (~1.5 GB)...')
+        await modelManager.downloadModel((fraction) => {
+          win.webContents.send('model:downloadProgress', fraction)
+        })
+        win.webContents.send('model:loaded')
+      }
+
+      win.webContents.send('deps:status', null)
+      win.webContents.send('deps:allReady')
+    } catch (err) {
+      console.error('[deps:ensureAll] Failed:', err)
+      const message = err instanceof Error ? err.message : 'Download failed'
+      win.webContents.send('deps:error', message)
     }
   })
 }
