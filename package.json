@@ -15,7 +15,11 @@
     "dist": "electron-vite build && electron-builder",
     "dist:win": "electron-vite build && electron-builder --win",
     "dist:mac": "electron-vite build && electron-builder --mac",
-    "dist:linux": "electron-vite build && electron-builder --linux"
+    "dist:linux": "electron-vite build && electron-builder --linux",
+    "release": "electron-vite build && electron-builder --mac --win --linux",
+    "release:mac": "electron-vite build && electron-builder --mac --x64 --arm64",
+    "release:win": "electron-vite build && electron-builder --win --x64 --arm64",
+    "release:linux": "electron-vite build && electron-builder --linux --x64 --arm64"
   },
   "build": {
     "appId": "com.echo.desktop",
@@ -32,21 +36,25 @@
     ],
     "win": {
       "target": [
-        "dir"
+        "zip"
       ],
       "icon": "resources/icon.ico"
     },
     "mac": {
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
-      "icon": "resources/icon.icns"
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.productivity"
     },
     "linux": {
       "target": [
-        "AppImage"
+        "AppImage",
+        "deb"
       ],
-      "icon": "resources/icon.png"
+      "icon": "resources/icon.png",
+      "category": "AudioVideo"
     },
     "asar": true
   },
