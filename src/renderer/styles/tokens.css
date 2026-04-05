@@ -1,0 +1,129 @@
+/* Echo Design System — ported from DesignSystem.swift */
+
+:root {
+  /* Spacing (matches EchoSpacing) */
+  --spacing-xs: 8px;
+  --spacing-sm: 16px;
+  --spacing-md: 24px;
+  --spacing-lg: 32px;
+  --spacing-xl: 48px;
+  --spacing-xxl: 64px;
+
+  /* Typography sizes (matches EchoTypography) */
+  --font-title: 32px;
+  --font-heading: 20px;
+  --font-body: 15px;
+  --font-caption: 12px;
+  --font-button: 14px;
+
+  /* Font weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Transition */
+  --transition-fast: 150ms ease-in-out;
+  --transition-normal: 200ms ease-in-out;
+  --transition-slow: 300ms ease-in-out;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-full: 9999px;
+}
+
+/* Dark theme (default) — matches EchoColors with .dark */
+[data-theme='dark'] {
+  --color-background: #111111;     /* rgb(0.067, 0.067, 0.067) */
+  --color-surface: #1f1f1f;        /* rgb(0.12, 0.12, 0.12) */
+  --color-foreground: #f0f0f0;     /* rgb(0.94, 0.94, 0.94) */
+  --color-secondary: #999999;      /* rgb(0.6, 0.6, 0.6) */
+  --color-border: #404040;         /* rgb(0.25, 0.25, 0.25) */
+  --color-highlight: #292933;      /* rgb(0.16, 0.16, 0.20) */
+  --color-destructive: #cc0000;    /* rgb(0.8, 0, 0) */
+}
+
+/* Light theme — matches EchoColors with .light */
+[data-theme='light'] {
+  --color-background: #ffffff;
+  --color-surface: #f5f5f5;        /* rgb(0.96, 0.96, 0.96) */
+  --color-foreground: #0a0a0a;     /* rgb(0.04, 0.04, 0.04) */
+  --color-secondary: #666666;      /* rgb(0.4, 0.4, 0.4) */
+  --color-border: #dcdcdc;         /* rgb(0.87, 0.87, 0.87) */
+  --color-highlight: #ededf8;      /* rgb(0.93, 0.93, 0.97) */
+  --color-destructive: #cc0000;
+}
+
+/* Base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: var(--font-body);
+  color: var(--color-foreground);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary);
+}
+
+/* Selection */
+::selection {
+  background: var(--color-highlight);
+  color: var(--color-foreground);
+}
+
+/* Drag region for frameless window (if needed) */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Animations */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes indeterminate {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(200%); }
+}
