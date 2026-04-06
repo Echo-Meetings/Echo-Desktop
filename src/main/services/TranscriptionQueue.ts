@@ -101,7 +101,11 @@ export class TranscriptionQueue {
         }
       }
 
-      // Ensure whisper-cli
+      // Ensure whisper-cli (and correct architecture)
+      if (this.whisperBinaryManager.needsArchFix()) {
+        console.log('[queue] Wrong whisper-cli architecture detected, re-downloading correct build')
+        this.whisperBinaryManager.deleteWhisperBinary()
+      }
       if (!locateWhisperCli()) {
         if (this.whisperBinaryManager.canAutoDownload()) {
           this.send('queue:sessionProgress', sessionId, -1, null)
@@ -180,7 +184,26 @@ export class TranscriptionQueue {
         this.modelManager.deleteModel()
       }
 
-      if (!message.includes('cancelled')) {
+      // Detect ACCESS_VIOLATION on Windows — run diagnostics to provide actionable advice
+      if (message.includes('ACCESS_VIOLATION') || message.includes('3221225501')) {
+        const diag = this.whisperBinaryManager.diagnose()
+        console.warn('[queue] ACCESS_VIOLATION diagnostics:', JSON.stringify(diag))
+
+        let userMessage: string
+        if (!diag.vcRuntimeInstalled) {
+          userMessage = 'whisper-cli crashed: Visual C++ Redistributable is not installed. ' +
+            'Please download and install it from Microsoft, then restart the app. ' +
+            'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+        } else if (diag.missingDlls.length > 0) {
+          userMessage = `whisper-cli crashed: missing DLL files (${diag.missingDlls.join(', ')}). ` +
+            'Please reinstall whisper-cli from Settings → System Diagnostics.'
+        } else {
+          userMessage = 'whisper-cli crashed unexpectedly (ACCESS_VIOLATION). ' +
+            'Try reinstalling whisper-cli from Settings → System Diagnostics. ' +
+            'If the issue persists, check Settings → System Diagnostics for details.'
+        }
+        this.send('queue:sessionError', sessionId, userMessage)
+      } else if (!message.includes('cancelled')) {
         this.send('queue:sessionError', sessionId, message)
       } else {
         this.send('queue:sessionRemoved', sessionId)

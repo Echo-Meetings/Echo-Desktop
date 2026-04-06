@@ -39,34 +39,38 @@ export default function App() {
   // Load settings and history on mount — all IPC calls in parallel
   useEffect(() => {
     async function loadSettings() {
-      const [onboarded, lang, savedUiLang, modelStatus, depsStatus, entries, { detectSystemLocale }] =
-        await Promise.all([
-          window.electronAPI.settings.get('hasCompletedOnboarding'),
-          window.electronAPI.settings.get('languageOverride'),
-          window.electronAPI.settings.get('uiLanguage'),
-          window.electronAPI.model.getStatus(),
-          window.electronAPI.deps.getStatus(),
-          window.electronAPI.history.getAll(),
-          import('@/i18n')
-        ])
+      try {
+        const [onboarded, lang, savedUiLang, modelStatus, depsStatus, entries, { detectSystemLocale }] =
+          await Promise.all([
+            window.electronAPI.settings.get('hasCompletedOnboarding'),
+            window.electronAPI.settings.get('languageOverride'),
+            window.electronAPI.settings.get('uiLanguage'),
+            window.electronAPI.model.getStatus(),
+            window.electronAPI.deps.getStatus(),
+            window.electronAPI.history.getAll(),
+            import('@/i18n')
+          ])
 
-      if (onboarded) useAppStore.getState().setHasCompletedOnboarding(true)
-      if (typeof lang === 'string') useAppStore.getState().setLanguageOverride(lang)
+        if (onboarded) useAppStore.getState().setHasCompletedOnboarding(true)
+        if (typeof lang === 'string') useAppStore.getState().setLanguageOverride(lang)
 
-      if (savedUiLang && typeof savedUiLang === 'string') {
-        useAppStore.getState().setUiLanguage(savedUiLang as 'en' | 'ru' | 'de' | 'fr')
-      } else {
-        useAppStore.getState().setUiLanguage(detectSystemLocale())
+        if (savedUiLang && typeof savedUiLang === 'string') {
+          useAppStore.getState().setUiLanguage(savedUiLang as 'en' | 'ru' | 'de' | 'fr')
+        } else {
+          useAppStore.getState().setUiLanguage(detectSystemLocale())
+        }
+
+        if (modelStatus.loaded && depsStatus.whisperAvailable && depsStatus.ffmpegAvailable) {
+          useAppStore.getState().setModelReady(true)
+        }
+
+        useAppStore.getState().setHistoryEntries(entries as never[])
+      } catch (err) {
+        console.error('[App] Failed to load settings:', err)
+      } finally {
+        // Always dismiss preloader, even if settings load fails
+        if (typeof window.finishLoading === 'function') window.finishLoading()
       }
-
-      if (modelStatus.loaded && depsStatus.whisperAvailable && depsStatus.ffmpegAvailable) {
-        useAppStore.getState().setModelReady(true)
-      }
-
-      useAppStore.getState().setHistoryEntries(entries as never[])
-
-      // Dismiss preloader
-      if (typeof window.finishLoading === 'function') window.finishLoading()
     }
     loadSettings()
   }, [])

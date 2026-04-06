@@ -58,8 +58,18 @@ export function registerModelIpc(): void {
       canAutoDownloadWhisper: whisperBinaryManager.canAutoDownload(),
       canAutoDownloadFFmpeg: whisperBinaryManager.canAutoDownloadFFmpeg(),
       whisperInstallInstructions: whisperBinaryManager.getInstallInstructions(),
-      platform: process.platform
+      platform: process.platform,
+      arch: process.arch
     }
+  })
+
+  ipcMain.handle('deps:diagnose', async () => {
+    return whisperBinaryManager.diagnose()
+  })
+
+  ipcMain.handle('deps:deleteWhisper', async () => {
+    whisperBinaryManager.deleteWhisperBinary()
+    return { deleted: true }
   })
 
   ipcMain.handle('deps:downloadWhisper', async () => {

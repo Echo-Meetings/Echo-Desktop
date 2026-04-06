@@ -169,7 +169,15 @@ export class TranscriptionService {
         }
 
         if (code !== 0) {
-          reject(new Error(`whisper-cli failed (code ${code}): ${stderr.slice(-300)}`))
+          // 0xC0000005 = 3221225501 = ACCESS_VIOLATION on Windows
+          if (process.platform === 'win32' && code === 3221225501) {
+            reject(new Error(
+              `whisper-cli crashed with ACCESS_VIOLATION (code ${code}). ` +
+              `Architecture: ${process.arch}. ${stderr.slice(-200)}`
+            ))
+          } else {
+            reject(new Error(`whisper-cli failed (code ${code}): ${stderr.slice(-300)}`))
+          }
           return
         }
 

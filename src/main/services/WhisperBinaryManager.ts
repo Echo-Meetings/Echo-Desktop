@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, createWriteStream, chmodSync, unlinkSync, readdirSync, renameSync, rmdirSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync, createWriteStream, chmodSync, unlinkSync, readdirSync, renameSync, rmdirSync, statSync, readFileSync, writeFileSync } from 'fs'
+import { join, dirname } from 'path'
 import { get as httpsGet } from 'https'
 import { IncomingMessage } from 'http'
 import { execSync } from 'child_process'
@@ -7,11 +7,36 @@ import { locateWhisperCli, locateFFmpeg, locateFFprobe, getWhisperBinDir } from 
 
 const WHISPER_VERSION = '1.8.4'
 
+/** DLLs expected alongside whisper-cli.exe in the download package */
+const WHISPER_EXPECTED_DLLS = ['whisper.dll', 'ggml.dll', 'ggml-base.dll', 'ggml-cpu.dll']
+
+export interface DiagnosticResult {
+  ok: boolean
+  whisperInstalled: boolean
+  whisperBinaryValid: boolean
+  ffmpegInstalled: boolean
+  vcRuntimeInstalled: boolean
+  missingDlls: string[]
+  arch: string
+  platform: string
+  whisperPath: string | null
+  ffmpegPath: string | null
+  whisperVersion: string
+}
+
 // FFmpeg release from BtbN — reliable, up-to-date, includes ffmpeg + ffprobe
 const FFMPEG_WIN64_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
 
 function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz'; binariesInDir: string } | null {
   if (process.platform === 'win32') {
+    if (process.arch === 'arm64') {
+      // Native ARM64 build hosted in our repo — emulated x64/x86 builds crash with ACCESS_VIOLATION
+      return {
+        url: `https://github.com/Echo-Meetings/Echo-Desktop/releases/download/whisper-v${WHISPER_VERSION}-arm64/whisper-bin-arm64-windows.zip`,
+        archiveType: 'zip',
+        binariesInDir: ''  // flat zip, no subdirectory
+      }
+    }
     return {
       url: `https://github.com/ggml-org/whisper.cpp/releases/download/v${WHISPER_VERSION}/whisper-bin-x64.zip`,
       archiveType: 'zip',
@@ -34,6 +59,31 @@ export class WhisperBinaryManager {
 
   isFFmpegAvailable(): boolean {
     return locateFFmpeg() !== null
+  }
+
+  /**
+   * On ARM64 Windows, check if the installed whisper binary is the wrong architecture (x64).
+   * x64 binaries crash with ACCESS_VIOLATION on ARM64 due to AVX/SSE instructions.
+   * Returns true if the binary needs to be replaced.
+   */
+  needsArchFix(): boolean {
+    if (process.platform !== 'win32' || process.arch !== 'arm64') return false
+    const whisperPath = locateWhisperCli()
+    if (!whisperPath) return false
+
+    // Check if a x64 DLL exists alongside the binary — x64 builds include ggml-cpu.dll (~15MB+),
+    // while Win32 builds have a smaller one. We detect by checking for x64-specific file naming
+    // in the download marker, or by binary size heuristic.
+    // Simplest approach: if we have a marker file, check it. Otherwise, re-download to be safe.
+    const markerPath = join(this.binDir, '.whisper-arch')
+    try {
+      if (existsSync(markerPath)) {
+        const marker = readFileSync(markerPath, 'utf-8').trim()
+        return marker !== 'Win32'
+      }
+    } catch { /* ok */ }
+    // No marker = old download (was always x64), needs fix
+    return true
   }
 
   getInstallInstructions(): string {
@@ -79,6 +129,10 @@ export class WhisperBinaryManager {
 
     const whisperPath = locateWhisperCli()
     if (!whisperPath) throw new Error('whisper-cli download succeeded but binary not found after extraction')
+
+    // Write arch marker so we can detect wrong-arch binaries later
+    const variant = process.arch === 'arm64' ? 'Win32' : 'x64'
+    try { writeFileSync(join(this.binDir, '.whisper-arch'), variant) } catch { /* ok */ }
 
     onProgress(1)
     return whisperPath
@@ -129,6 +183,79 @@ export class WhisperBinaryManager {
     onProgress(1)
   }
 
+  /**
+   * Run diagnostics on whisper-cli and its dependencies.
+   * Checks binary presence, DLLs, VC++ runtime, ffmpeg.
+   */
+  diagnose(): DiagnosticResult {
+    const whisperPath = locateWhisperCli()
+    const ffmpegPath = locateFFmpeg()
+
+    let whisperBinaryValid = false
+    let missingDlls: string[] = []
+    let vcRuntimeInstalled = true
+
+    if (whisperPath) {
+      // Check binary is not empty
+      try {
+        const stat = statSync(whisperPath)
+        whisperBinaryValid = stat.size > 0
+      } catch {
+        whisperBinaryValid = false
+      }
+
+      // Check companion DLLs (Windows only)
+      if (process.platform === 'win32') {
+        const whisperDir = dirname(whisperPath)
+        missingDlls = WHISPER_EXPECTED_DLLS.filter(
+          (dll) => !existsSync(join(whisperDir, dll))
+        )
+      }
+    }
+
+    // Check VC++ Runtime (Windows only)
+    if (process.platform === 'win32') {
+      const sys32 = 'C:\\Windows\\System32'
+      vcRuntimeInstalled = existsSync(join(sys32, 'vcruntime140.dll')) &&
+        existsSync(join(sys32, 'msvcp140.dll'))
+    }
+
+    const ok = !!whisperPath && whisperBinaryValid && missingDlls.length === 0 &&
+      vcRuntimeInstalled && !!ffmpegPath
+
+    return {
+      ok,
+      whisperInstalled: !!whisperPath,
+      whisperBinaryValid,
+      ffmpegInstalled: !!ffmpegPath,
+      vcRuntimeInstalled,
+      missingDlls,
+      arch: process.arch,
+      platform: process.platform,
+      whisperPath,
+      ffmpegPath,
+      whisperVersion: WHISPER_VERSION
+    }
+  }
+
+  /**
+   * Delete the downloaded whisper-cli binary and companion DLLs.
+   * Used for manual reinstallation from Settings UI.
+   */
+  deleteWhisperBinary(): void {
+    const binDir = getWhisperBinDir()
+    if (!existsSync(binDir)) return
+
+    try {
+      const files = readdirSync(binDir)
+      for (const f of files) {
+        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f === '.whisper-arch') {
+          try { unlinkSync(join(binDir, f)) } catch { /* ok */ }
+        }
+      }
+    } catch { /* ok */ }
+  }
+
   private downloadFile(url: string, destPath: string, onProgress: (fraction: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       const downloadWithRedirects = (downloadUrl: string, redirectCount = 0): void => {
@@ -176,6 +303,7 @@ export class WhisperBinaryManager {
   }
 
   private flattenDir(destDir: string, subDirName: string): void {
+    if (!subDirName) return // flat archive, nothing to flatten
     const subDir = join(destDir, subDirName)
     if (!existsSync(subDir)) return
 
