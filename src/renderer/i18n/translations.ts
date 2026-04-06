@@ -164,6 +164,25 @@ export interface Translations {
   privacyChangesText: string
   acceptAndContinue: string
 
+  // System Diagnostics
+  diagnosticsSection: string
+  diagnosticsWhisper: string
+  diagnosticsFfmpeg: string
+  diagnosticsVcRuntime: string
+  diagnosticsDlls: string
+  diagnosticsArchitecture: string
+  diagnosticsWhisperVersion: string
+  diagnosticsInstalled: string
+  diagnosticsNotFound: string
+  diagnosticsValid: string
+  diagnosticsInvalid: string
+  diagnosticsAllPresent: string
+  diagnosticsMissing: string
+  diagnosticsReinstall: string
+  diagnosticsReinstallConfirm: string
+  diagnosticsReinstalling: string
+  diagnosticsDownloadVcRuntime: string
+
   // Close warning
   closeWarningTitle: string
   closeWarningMessage: string
@@ -307,6 +326,23 @@ export const translations: Record<UILocale, Translations> = {
     privacyChangesTitle: '8. Changes',
     privacyChangesText: 'If this policy is updated, changes will be included in the next app release. You can always review the current policy from the Settings screen.',
     acceptAndContinue: 'Accept & Continue',
+    diagnosticsSection: 'System Diagnostics',
+    diagnosticsWhisper: 'whisper-cli',
+    diagnosticsFfmpeg: 'ffmpeg',
+    diagnosticsVcRuntime: 'VC++ Runtime',
+    diagnosticsDlls: 'DLLs',
+    diagnosticsArchitecture: 'Architecture',
+    diagnosticsWhisperVersion: 'Whisper version',
+    diagnosticsInstalled: 'Installed',
+    diagnosticsNotFound: 'Not found',
+    diagnosticsValid: 'Valid',
+    diagnosticsInvalid: 'Invalid',
+    diagnosticsAllPresent: 'All present',
+    diagnosticsMissing: 'Missing: {dlls}',
+    diagnosticsReinstall: 'Reinstall',
+    diagnosticsReinstallConfirm: 'This will delete the whisper-cli binary and re-download it. Continue?',
+    diagnosticsReinstalling: 'Reinstalling...',
+    diagnosticsDownloadVcRuntime: 'Download',
     closeWarningTitle: 'Transcription in progress',
     closeWarningMessage: 'One or more files are still being transcribed.',
     closeWarningDetail: 'If you quit now, progress will be lost. Are you sure?',
@@ -448,6 +484,23 @@ export const translations: Record<UILocale, Translations> = {
     privacyChangesTitle: '8. Изменения',
     privacyChangesText: 'При обновлении политики изменения будут включены в следующий релиз приложения. Вы всегда можете просмотреть текущую политику в Настройках.',
     acceptAndContinue: 'Принять и продолжить',
+    diagnosticsSection: 'Диагностика системы',
+    diagnosticsWhisper: 'whisper-cli',
+    diagnosticsFfmpeg: 'ffmpeg',
+    diagnosticsVcRuntime: 'VC++ Runtime',
+    diagnosticsDlls: 'DLL-библиотеки',
+    diagnosticsArchitecture: 'Архитектура',
+    diagnosticsWhisperVersion: 'Версия Whisper',
+    diagnosticsInstalled: 'Установлен',
+    diagnosticsNotFound: 'Не найден',
+    diagnosticsValid: 'Валидный',
+    diagnosticsInvalid: 'Повреждён',
+    diagnosticsAllPresent: 'Все на месте',
+    diagnosticsMissing: 'Отсутствуют: {dlls}',
+    diagnosticsReinstall: 'Переустановить',
+    diagnosticsReinstallConfirm: 'Бинарник whisper-cli будет удалён и скачан заново. Продолжить?',
+    diagnosticsReinstalling: 'Переустановка...',
+    diagnosticsDownloadVcRuntime: 'Скачать',
     closeWarningTitle: 'Транскрипция в процессе',
     closeWarningMessage: 'Один или несколько файлов еще обрабатываются.',
     closeWarningDetail: 'Если вы закроете приложение, прогресс будет потерян. Вы уверены?',
@@ -589,6 +642,23 @@ export const translations: Record<UILocale, Translations> = {
     privacyChangesTitle: '8. Änderungen',
     privacyChangesText: 'Bei Aktualisierung dieser Richtlinie werden Änderungen in die nächste App-Version aufgenommen. Die aktuelle Richtlinie können Sie jederzeit in den Einstellungen einsehen.',
     acceptAndContinue: 'Akzeptieren & Fortfahren',
+    diagnosticsSection: 'Systemdiagnose',
+    diagnosticsWhisper: 'whisper-cli',
+    diagnosticsFfmpeg: 'ffmpeg',
+    diagnosticsVcRuntime: 'VC++ Runtime',
+    diagnosticsDlls: 'DLL-Dateien',
+    diagnosticsArchitecture: 'Architektur',
+    diagnosticsWhisperVersion: 'Whisper-Version',
+    diagnosticsInstalled: 'Installiert',
+    diagnosticsNotFound: 'Nicht gefunden',
+    diagnosticsValid: 'Gültig',
+    diagnosticsInvalid: 'Ungültig',
+    diagnosticsAllPresent: 'Alle vorhanden',
+    diagnosticsMissing: 'Fehlend: {dlls}',
+    diagnosticsReinstall: 'Neu installieren',
+    diagnosticsReinstallConfirm: 'whisper-cli wird gelöscht und neu heruntergeladen. Fortfahren?',
+    diagnosticsReinstalling: 'Neu installieren...',
+    diagnosticsDownloadVcRuntime: 'Herunterladen',
     closeWarningTitle: 'Transkription läuft',
     closeWarningMessage: 'Eine oder mehrere Dateien werden noch transkribiert.',
     closeWarningDetail: 'Wenn Sie jetzt beenden, geht der Fortschritt verloren. Sind Sie sicher?',
@@ -730,6 +800,23 @@ export const translations: Record<UILocale, Translations> = {
     privacyChangesTitle: '8. Modifications',
     privacyChangesText: "En cas de mise à jour de cette politique, les modifications seront incluses dans la prochaine version. Vous pouvez toujours consulter la politique actuelle dans les Paramètres.",
     acceptAndContinue: 'Accepter et continuer',
+    diagnosticsSection: 'Diagnostic système',
+    diagnosticsWhisper: 'whisper-cli',
+    diagnosticsFfmpeg: 'ffmpeg',
+    diagnosticsVcRuntime: 'VC++ Runtime',
+    diagnosticsDlls: 'Fichiers DLL',
+    diagnosticsArchitecture: 'Architecture',
+    diagnosticsWhisperVersion: 'Version Whisper',
+    diagnosticsInstalled: 'Installé',
+    diagnosticsNotFound: 'Non trouvé',
+    diagnosticsValid: 'Valide',
+    diagnosticsInvalid: 'Invalide',
+    diagnosticsAllPresent: 'Tous présents',
+    diagnosticsMissing: 'Manquants : {dlls}',
+    diagnosticsReinstall: 'Réinstaller',
+    diagnosticsReinstallConfirm: 'whisper-cli sera supprimé et retéléchargé. Continuer ?',
+    diagnosticsReinstalling: 'Réinstallation...',
+    diagnosticsDownloadVcRuntime: 'Télécharger',
     closeWarningTitle: 'Transcription en cours',
     closeWarningMessage: 'Un ou plusieurs fichiers sont encore en cours de transcription.',
     closeWarningDetail: 'Si vous quittez maintenant, la progression sera perdue. Êtes-vous sûr ?',

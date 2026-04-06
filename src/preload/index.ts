@@ -76,7 +76,22 @@ const electronAPI = {
       canAutoDownloadFFmpeg: boolean
       whisperInstallInstructions: string
       platform: string
+      arch: string
     }> => ipcRenderer.invoke('deps:getStatus'),
+    diagnose: (): Promise<{
+      ok: boolean
+      whisperInstalled: boolean
+      whisperBinaryValid: boolean
+      ffmpegInstalled: boolean
+      vcRuntimeInstalled: boolean
+      missingDlls: string[]
+      arch: string
+      platform: string
+      whisperPath: string | null
+      ffmpegPath: string | null
+      whisperVersion: string
+    }> => ipcRenderer.invoke('deps:diagnose'),
+    deleteWhisper: (): Promise<{ deleted: boolean }> => ipcRenderer.invoke('deps:deleteWhisper'),
     downloadWhisper: (): Promise<void> => ipcRenderer.invoke('deps:downloadWhisper'),
     downloadFFmpeg: (): Promise<void> => ipcRenderer.invoke('deps:downloadFFmpeg'),
     ensureAll: (): Promise<void> => ipcRenderer.invoke('deps:ensureAll')

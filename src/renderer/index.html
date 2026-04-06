@@ -230,19 +230,28 @@
           if (!resolved) { resolved = true; finishLoading(); }
         }, 5000);
 
+        var loadStart = Date.now();
+        var MIN_DISPLAY_MS = 2000; // Show preloader for at least 2 seconds
+
         function finishLoading() {
           clearTimeout(safetyTimeout);
-          targetPct = 100;
-          var waitForHundred = setInterval(function() {
-            if (displayPct >= 100) {
-              clearInterval(waitForHundred);
-              setTimeout(unlockPage, 200);
-            }
-          }, 16);
+          var elapsed = Date.now() - loadStart;
+          var remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
+
+          setTimeout(function() {
+            targetPct = 100;
+            var waitForHundred = setInterval(function() {
+              if (displayPct >= 100) {
+                clearInterval(waitForHundred);
+                setTimeout(unlockPage, 200);
+              }
+            }, 16);
+          }, remaining);
         }
 
         function unlockPage() {
           clearInterval(factInterval);
+          clearInterval(autoAdvance);
           document.body.classList.remove('is-loading');
           var loader = document.getElementById('page-loader');
           if (loader) {
@@ -250,6 +259,13 @@
             setTimeout(function() { loader.remove(); }, 600);
           }
         }
+
+        // Auto-advance progress during minimum display time
+        var autoAdvance = setInterval(function() {
+          var elapsed = Date.now() - loadStart;
+          var auto = Math.min(Math.floor((elapsed / MIN_DISPLAY_MS) * 80), 80);
+          setProgress(auto);
+        }, 50);
 
         // Expose to React
         window.setProgress = setProgress;

@@ -6,6 +6,20 @@ import { UI_LANGUAGES } from '@/i18n/translations'
 import { ComboBox } from './ComboBox'
 import { Button } from './Button'
 
+interface DiagnosticResult {
+  ok: boolean
+  whisperInstalled: boolean
+  whisperBinaryValid: boolean
+  ffmpegInstalled: boolean
+  vcRuntimeInstalled: boolean
+  missingDlls: string[]
+  arch: string
+  platform: string
+  whisperPath: string | null
+  ffmpegPath: string | null
+  whisperVersion: string
+}
+
 interface SettingsProps {
   onClose: () => void
 }
@@ -21,6 +35,8 @@ export function Settings({ onClose }: SettingsProps) {
   const [appVersion, setAppVersion] = useState('')
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'latest' | 'error'>('idle')
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion?: string; releaseUrl?: string }>({})
+  const [diagnostics, setDiagnostics] = useState<DiagnosticResult | null>(null)
+  const [reinstalling, setReinstalling] = useState(false)
 
   useEffect(() => {
     window.electronAPI.update.getVersion().then(setAppVersion)
@@ -44,6 +60,7 @@ export function Settings({ onClose }: SettingsProps) {
     window.electronAPI.settings.getStorageSize().then(setStorageSize)
     window.electronAPI.settings.get('privacyConsent').then((v) => setPrivacyConsent(!!v))
     window.electronAPI.model.getSize().then(setModelInfo)
+    window.electronAPI.deps.diagnose().then(setDiagnostics)
   }, [])
 
   const handleLanguageChange = async (code: string) => {
@@ -76,6 +93,16 @@ export function Settings({ onClose }: SettingsProps) {
     useAppStore.getState().setModelReady(false)
     setModelDeleting(false)
     onClose()
+  }
+
+  const handleReinstallWhisper = async () => {
+    if (!confirm(t.diagnosticsReinstallConfirm)) return
+    setReinstalling(true)
+    await window.electronAPI.deps.deleteWhisper()
+    await window.electronAPI.deps.downloadWhisper()
+    const diag = await window.electronAPI.deps.diagnose()
+    setDiagnostics(diag)
+    setReinstalling(false)
   }
 
   const handleViewPrivacy = () => {
@@ -182,6 +209,93 @@ export function Settings({ onClose }: SettingsProps) {
               <Button size="small" variant="destructive" onClick={handleDeleteModel} disabled={modelDeleting}>
                 {modelDeleting ? t.modelDeleting : t.deleteModel}
               </Button>
+            </div>
+          </div>
+
+          {/* Section: System Diagnostics */}
+          <div style={styles.sectionHeader}>{t.diagnosticsSection}</div>
+          <div style={styles.card}>
+            {/* whisper-cli */}
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.diagnosticsWhisper}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  fontSize: 13,
+                  color: diagnostics?.whisperInstalled ? '#22c55e' : '#ef4444',
+                }}>
+                  {diagnostics?.whisperInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
+                </span>
+                {diagnostics?.platform === 'win32' && (
+                  <Button size="small" onClick={handleReinstallWhisper} disabled={reinstalling}>
+                    {reinstalling ? t.diagnosticsReinstalling : t.diagnosticsReinstall}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div style={styles.cardDivider} />
+
+            {/* ffmpeg */}
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.diagnosticsFfmpeg}</div>
+              <span style={{
+                fontSize: 13,
+                color: diagnostics?.ffmpegInstalled ? '#22c55e' : '#ef4444',
+              }}>
+                {diagnostics?.ffmpegInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
+              </span>
+            </div>
+
+            {/* Windows-only diagnostics */}
+            {diagnostics?.platform === 'win32' && (
+              <>
+                <div style={styles.cardDivider} />
+                {/* VC++ Runtime */}
+                <div style={styles.cardRow}>
+                  <div style={styles.rowLabel}>{t.diagnosticsVcRuntime}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      fontSize: 13,
+                      color: diagnostics.vcRuntimeInstalled ? '#22c55e' : '#ef4444',
+                    }}>
+                      {diagnostics.vcRuntimeInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
+                    </span>
+                    {!diagnostics.vcRuntimeInstalled && (
+                      <Button size="small" onClick={() => {
+                        window.electronAPI.update.openRelease('https://aka.ms/vs/17/release/vc_redist.x64.exe')
+                      }}>
+                        {t.diagnosticsDownloadVcRuntime} ↗
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div style={styles.cardDivider} />
+
+                {/* DLLs */}
+                <div style={styles.cardRow}>
+                  <div style={styles.rowLabel}>{t.diagnosticsDlls}</div>
+                  <span style={{
+                    fontSize: 13,
+                    color: diagnostics.missingDlls.length === 0 ? '#22c55e' : '#ef4444',
+                  }}>
+                    {diagnostics.missingDlls.length === 0
+                      ? t.diagnosticsAllPresent
+                      : fmt(t.diagnosticsMissing, { dlls: diagnostics.missingDlls.join(', ') })}
+                  </span>
+                </div>
+              </>
+            )}
+
+            <div style={styles.cardDivider} />
+            {/* Architecture */}
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.diagnosticsArchitecture}</div>
+              <div style={styles.rowValue}>{diagnostics?.arch || '—'}</div>
+            </div>
+            <div style={styles.cardDivider} />
+            {/* Whisper version */}
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.diagnosticsWhisperVersion}</div>
+              <div style={styles.rowValue}>{diagnostics?.whisperVersion || '—'}</div>
             </div>
           </div>
 
