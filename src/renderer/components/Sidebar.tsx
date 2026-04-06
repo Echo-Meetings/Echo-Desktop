@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, memo } from 'react'
 import { useAppStore } from '@/stores/appStore'
 import type { HistoryEntry, HistoryFilter, QueueSession } from '@/types/models'
 import { formatDuration, VIDEO_EXTENSIONS } from '@/types/models'
@@ -259,11 +259,11 @@ export function Sidebar() {
     setRenamingId(null)
   }, [])
 
-  const handleContextMenu = (e: React.MouseEvent, entry: HistoryEntry) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent, entry: HistoryEntry) => {
     e.preventDefault()
     e.stopPropagation()
     setContextMenu({ x: e.clientX, y: e.clientY, entry })
-  }
+  }, [])
 
   const handleLogoClick = () => {
     setSelectedIds(new Set())
@@ -414,66 +414,27 @@ export function Sidebar() {
             <div style={styles.emptyText}>{t.noResults}</div>
           </div>
         ) : (
-          filteredEntries.map((entry) => {
-            const isSelected = selectedIds.has(entry.id)
-            const isViewing = selectedEntryId === entry.id && !isMultiSelect
-            return (
-              <button
-                key={entry.id}
-                onClick={(e) => handleSelectEntry(entry, e)}
-                onContextMenu={(e) => handleContextMenu(e, entry)}
-                style={{
-                  ...styles.historyRow,
-                  ...(isViewing ? styles.historyRowSelected : {}),
-                  ...(isSelected ? styles.historyRowMultiSelected : {})
-                }}
-              >
-                {isMultiSelect && (
-                  <div style={{
-                    ...styles.checkbox,
-                    ...(isSelected ? styles.checkboxChecked : {})
-                  }}>
-                    {isSelected && '✓'}
-                  </div>
-                )}
-                <div style={styles.thumbnail}>
-                  {(() => {
-                    const ext = entry.fileExtension?.toLowerCase() || ''
-                    const isVideo = VIDEO_EXTENSIONS.has(ext)
-                    const thumb = thumbnails[entry.id]
-                    if (thumb) {
-                      return <img src={thumb} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />
-                    }
-                    return isVideo ? '▶' : '♪'
-                  })()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {renamingId === entry.id ? (
-                    <input
-                      ref={renameInputRef}
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={doRename}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') { e.preventDefault(); doRename() }
-                        if (e.key === 'Escape') cancelRename()
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      style={styles.renameInput}
-                      autoFocus
-                    />
-                  ) : (
-                    <div style={styles.entryFileName}>{entry.fileName}</div>
-                  )}
-                  <div style={styles.entryMeta}>
-                    {entry.audioDuration ? formatDuration(entry.audioDuration) : ''}
-                    {entry.audioDuration ? ' · ' : ''}
-                    {new Date(entry.createdAt).toLocaleDateString()}
-                  </div>
-                </div>
-              </button>
-            )
-          })
+          filteredEntries.map((entry) => (
+            <HistoryRow
+              key={entry.id}
+              entry={entry}
+              isViewing={selectedEntryId === entry.id && !isMultiSelect}
+              isSelected={selectedIds.has(entry.id)}
+              isMultiSelect={isMultiSelect}
+              thumbnail={thumbnails[entry.id] || null}
+              renamingId={renamingId}
+              renameValue={renameValue}
+              renameInputRef={renameInputRef}
+              onRenameChange={setRenameValue}
+              onRenameBlur={doRename}
+              onRenameKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); doRename() }
+                if (e.key === 'Escape') cancelRename()
+              }}
+              onSelect={handleSelectEntry}
+              onContextMenu={handleContextMenu}
+            />
+          ))
         )}
       </div>
 
@@ -579,6 +540,80 @@ const sidebarKeyframes = `
   100% { margin-left: 70%; width: 30%; }
 }
 `
+
+interface HistoryRowProps {
+  entry: HistoryEntry
+  isViewing: boolean
+  isSelected: boolean
+  isMultiSelect: boolean
+  thumbnail: string | null
+  renamingId: string | null
+  renameValue: string
+  renameInputRef: React.RefObject<HTMLInputElement | null>
+  onRenameChange: (value: string) => void
+  onRenameBlur: () => void
+  onRenameKeyDown: (e: React.KeyboardEvent) => void
+  onSelect: (entry: HistoryEntry, e: React.MouseEvent) => void
+  onContextMenu: (e: React.MouseEvent, entry: HistoryEntry) => void
+}
+
+const HistoryRow = memo(function HistoryRow({
+  entry, isViewing, isSelected, isMultiSelect, thumbnail,
+  renamingId, renameValue, renameInputRef,
+  onRenameChange, onRenameBlur, onRenameKeyDown,
+  onSelect, onContextMenu
+}: HistoryRowProps) {
+  const ext = entry.fileExtension?.toLowerCase() || ''
+  const isVideo = VIDEO_EXTENSIONS.has(ext)
+
+  return (
+    <button
+      key={entry.id}
+      onClick={(e) => onSelect(entry, e)}
+      onContextMenu={(e) => onContextMenu(e, entry)}
+      style={{
+        ...styles.historyRow,
+        ...(isViewing ? styles.historyRowSelected : {}),
+        ...(isSelected ? styles.historyRowMultiSelected : {})
+      }}
+    >
+      {isMultiSelect && (
+        <div style={{
+          ...styles.checkbox,
+          ...(isSelected ? styles.checkboxChecked : {})
+        }}>
+          {isSelected && '✓'}
+        </div>
+      )}
+      <div style={styles.thumbnail}>
+        {thumbnail ? (
+          <img src={thumbnail} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />
+        ) : isVideo ? '▶' : '♪'}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {renamingId === entry.id ? (
+          <input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => onRenameChange(e.target.value)}
+            onBlur={onRenameBlur}
+            onKeyDown={onRenameKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            style={styles.renameInput}
+            autoFocus
+          />
+        ) : (
+          <div style={styles.entryFileName}>{entry.fileName}</div>
+        )}
+        <div style={styles.entryMeta}>
+          {entry.audioDuration ? formatDuration(entry.audioDuration) : ''}
+          {entry.audioDuration ? ' · ' : ''}
+          {new Date(entry.createdAt).toLocaleDateString()}
+        </div>
+      </div>
+    </button>
+  )
+})
 
 const styles: Record<string, React.CSSProperties> = {
   sidebar: {

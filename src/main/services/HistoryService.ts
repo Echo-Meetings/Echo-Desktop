@@ -2,6 +2,7 @@ import {
   existsSync, mkdirSync, writeFileSync, readFileSync,
   readdirSync, unlinkSync, copyFileSync, statSync, renameSync
 } from 'fs'
+import { readdir, readFile } from 'fs/promises'
 import { join, extname, basename } from 'path'
 import { app } from 'electron'
 import { randomUUID } from 'crypto'
@@ -134,24 +135,37 @@ export class HistoryService {
   }
 
   /**
-   * Load all history entries from disk.
+   * Load a single history entry by ID (O(1) disk read).
    */
-  loadAll(): HistoryEntry[] {
+  loadById(id: string): HistoryEntry | null {
+    const jsonPath = join(this.echoDir, `${id}.json`)
+    try {
+      const data = readFileSync(jsonPath, 'utf-8')
+      return JSON.parse(data) as HistoryEntry
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Load all history entries from disk (async, non-blocking).
+   */
+  async loadAll(): Promise<HistoryEntry[]> {
     if (!existsSync(this.echoDir)) return []
 
-    const files = readdirSync(this.echoDir).filter((f) => f.endsWith('.json'))
-    const entries: HistoryEntry[] = []
+    const files = (await readdir(this.echoDir)).filter((f) => f.endsWith('.json'))
+    const results = await Promise.all(
+      files.map(async (file) => {
+        try {
+          const data = await readFile(join(this.echoDir, file), 'utf-8')
+          return JSON.parse(data) as HistoryEntry
+        } catch {
+          return null
+        }
+      })
+    )
 
-    for (const file of files) {
-      try {
-        const data = readFileSync(join(this.echoDir, file), 'utf-8')
-        entries.push(JSON.parse(data) as HistoryEntry)
-      } catch {
-        // Skip corrupt entries
-      }
-    }
-
-    // Sort by date, newest first
+    const entries = results.filter((e): e is HistoryEntry => e !== null)
     entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     return entries
   }

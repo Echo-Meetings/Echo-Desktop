@@ -16,11 +16,14 @@ export function Settings({ onClose }: SettingsProps) {
   const [storageDir, setStorageDir] = useState('')
   const [storageSize, setStorageSize] = useState(0)
   const [privacyConsent, setPrivacyConsent] = useState(false)
+  const [modelInfo, setModelInfo] = useState<{ size: number; path: string } | null>(null)
+  const [modelDeleting, setModelDeleting] = useState(false)
 
   useEffect(() => {
     window.electronAPI.settings.getStorageDirectory().then(setStorageDir)
     window.electronAPI.settings.getStorageSize().then(setStorageSize)
     window.electronAPI.settings.get('privacyConsent').then((v) => setPrivacyConsent(!!v))
+    window.electronAPI.model.getSize().then(setModelInfo)
   }, [])
 
   const handleLanguageChange = async (code: string) => {
@@ -43,6 +46,15 @@ export function Settings({ onClose }: SettingsProps) {
   const handleShowOnboarding = async () => {
     await window.electronAPI.settings.set('hasCompletedOnboarding', false)
     setHasCompletedOnboarding(false)
+    onClose()
+  }
+
+  const handleDeleteModel = async () => {
+    if (!confirm(t.deleteModelConfirm)) return
+    setModelDeleting(true)
+    await window.electronAPI.model.delete()
+    useAppStore.getState().setModelReady(false)
+    setModelDeleting(false)
     onClose()
   }
 
@@ -123,6 +135,33 @@ export function Settings({ onClose }: SettingsProps) {
             <div style={styles.cardRow}>
               <div style={styles.rowLabel}>{t.storageUsed}</div>
               <div style={styles.rowValue}>{formatSize(storageSize)}</div>
+            </div>
+          </div>
+
+          {/* Section: AI Model */}
+          <div style={styles.sectionHeader}>{t.modelSection}</div>
+          <div style={styles.card}>
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.modelName2}</div>
+              <div style={styles.rowValue}>whisper large-v3-turbo</div>
+            </div>
+            <div style={styles.cardDivider} />
+            <div style={styles.cardRow}>
+              <div style={styles.rowLabel}>{t.modelSize2}</div>
+              <div style={styles.rowValue}>{modelInfo ? formatSize(modelInfo.size) : '—'}</div>
+            </div>
+            <div style={styles.cardDivider} />
+            <div style={styles.cardRow}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={styles.rowLabel}>{t.modelPath}</div>
+                <div style={styles.storagePath}>{modelInfo?.path || '—'}</div>
+              </div>
+            </div>
+            <div style={styles.cardDivider} />
+            <div style={{ padding: '4px 0' }}>
+              <Button size="small" variant="destructive" onClick={handleDeleteModel} disabled={modelDeleting}>
+                {modelDeleting ? t.modelDeleting : t.deleteModel}
+              </Button>
             </div>
           </div>
 

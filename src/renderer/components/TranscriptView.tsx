@@ -75,6 +75,36 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
     }
   }, [transcript.segments, getMediaElement])
 
+  // Reset playback state when switching between entries
+  useEffect(() => {
+    setActiveSegmentId(null)
+    setIsPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+    setVideoLoading(true)
+    setMediaError(null)
+
+    const el = getMediaElement()
+    if (el) {
+      el.pause()
+      el.currentTime = 0
+    }
+  }, [transcript.fileName, mediaPath])
+
+  // Clean up media elements on unmount to stop background loading
+  useEffect(() => {
+    return () => {
+      for (const ref of [videoRef, audioRef]) {
+        const el = ref.current
+        if (el) {
+          el.pause()
+          el.removeAttribute('src')
+          el.load()
+        }
+      }
+    }
+  }, [])
+
   // Auto-switch audio output when system default device changes (headphones, Bluetooth, etc.)
   useEffect(() => {
     const handler = async () => {
@@ -431,7 +461,7 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
               opacity: videoLoading || mediaError ? 0 : 1
             }}
             playsInline
-            preload="auto"
+            preload="metadata"
             onLoadedData={() => { setVideoLoading(false); setMediaError(null) }}
             {...mediaEvents}
           />
@@ -444,7 +474,7 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
         <audio
           ref={audioRef}
           src={mediaUrl || undefined}
-          preload="auto"
+          preload="metadata"
           {...mediaEvents}
         />
       )}

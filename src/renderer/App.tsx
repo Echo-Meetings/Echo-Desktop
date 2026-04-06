@@ -248,7 +248,6 @@ function ContentRouter({
   if (viewingEntry) {
     return (
       <TranscriptView
-        key={viewingEntry.id}
         transcript={{
           fileName: viewingEntry.fileName,
           segments: viewingEntry.segments,

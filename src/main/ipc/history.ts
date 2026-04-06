@@ -27,8 +27,7 @@ export function registerHistoryIpc(): void {
   })
 
   ipcMain.handle('history:getMediaUrl', async (_event, id: string) => {
-    const entries = historyService.loadAll()
-    const entry = entries.find((e) => e.id === id)
+    const entry = historyService.loadById(id)
     if (!entry) return null
     const filePath = historyService.resolveMediaPath(entry)
     return filePath ? pathToFileURL(filePath).toString() : null

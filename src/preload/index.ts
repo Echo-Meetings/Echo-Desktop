@@ -59,7 +59,9 @@ const electronAPI = {
   model: {
     getStatus: (): Promise<{ loaded: boolean; path: string | null }> =>
       ipcRenderer.invoke('model:getStatus'),
-    load: (): Promise<void> => ipcRenderer.invoke('model:load')
+    load: (): Promise<void> => ipcRenderer.invoke('model:load'),
+    delete: (): Promise<{ deleted: boolean }> => ipcRenderer.invoke('model:delete'),
+    getSize: (): Promise<{ size: number; path: string }> => ipcRenderer.invoke('model:getSize')
   },
 
   // Dependencies (whisper-cli, ffmpeg)

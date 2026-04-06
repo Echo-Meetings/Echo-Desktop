@@ -1,4 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron'
+import { statSync } from 'fs'
 import { locateWhisperCli, locateFFmpeg, locateFFprobe } from '../services/BinaryPaths'
 import { modelManager, whisperBinaryManager } from './transcription'
 
@@ -27,6 +28,21 @@ export function registerModelIpc(): void {
       win.webContents.send('model:loaded')
     } catch (err) {
       console.error('Model download failed:', err)
+    }
+  })
+
+  ipcMain.handle('model:delete', async () => {
+    modelManager.deleteModel()
+    return { deleted: true }
+  })
+
+  ipcMain.handle('model:getSize', async () => {
+    const modelPath = modelManager.getModelPath()
+    try {
+      const stat = statSync(modelPath)
+      return { size: stat.size, path: modelPath }
+    } catch {
+      return { size: 0, path: modelPath }
     }
   })
 
