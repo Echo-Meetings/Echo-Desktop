@@ -127,6 +127,12 @@ export interface Translations {
   whisperCredit: string
   ffmpegCredit: string
   showOnboarding: string
+  checkForUpdates: string
+  checking: string
+  updateAvailable: string
+  updateNotAvailable: string
+  updateError: string
+  download: string
 
   // Privacy Policy
   privacyPolicyTitle: string
@@ -259,6 +265,12 @@ export const translations: Record<UILocale, Translations> = {
     whisperCredit: 'whisper.cpp (MIT) — Speech recognition',
     ffmpegCredit: 'ffmpeg 8.1 (GPL) — Video conversion',
     showOnboarding: 'Show Onboarding Again',
+    checkForUpdates: 'Check for Updates',
+    checking: 'Checking...',
+    updateAvailable: 'Version {version} available',
+    updateNotAvailable: 'You are on the latest version',
+    updateError: 'Could not check for updates',
+    download: 'Download',
     privacyPolicyTitle: 'Privacy Policy',
     privacyOverviewTitle: '1. Overview',
     privacyOverviewText: 'Echo is a desktop application that transcribes audio and video files using on-device artificial intelligence. Privacy is a core design principle — all processing happens locally on your computer.',
@@ -386,6 +398,12 @@ export const translations: Record<UILocale, Translations> = {
     whisperCredit: 'whisper.cpp (MIT) — Распознавание речи',
     ffmpegCredit: 'ffmpeg 8.1 (GPL) — Конвертация видео',
     showOnboarding: 'Показать приветствие снова',
+    checkForUpdates: 'Проверить обновления',
+    checking: 'Проверка...',
+    updateAvailable: 'Доступна версия {version}',
+    updateNotAvailable: 'Установлена последняя версия',
+    updateError: 'Не удалось проверить обновления',
+    download: 'Скачать',
     privacyPolicyTitle: 'Политика конфиденциальности',
     privacyOverviewTitle: '1. Обзор',
     privacyOverviewText: 'Echo — это настольное приложение для транскрипции аудио и видео файлов с помощью локального искусственного интеллекта. Конфиденциальность является основным принципом — вся обработка происходит на вашем компьютере.',
@@ -513,6 +531,12 @@ export const translations: Record<UILocale, Translations> = {
     whisperCredit: 'whisper.cpp (MIT) — Spracherkennung',
     ffmpegCredit: 'ffmpeg 8.1 (GPL) — Videokonvertierung',
     showOnboarding: 'Einführung erneut anzeigen',
+    checkForUpdates: 'Nach Updates suchen',
+    checking: 'Prüfe...',
+    updateAvailable: 'Version {version} verfügbar',
+    updateNotAvailable: 'Sie verwenden die neueste Version',
+    updateError: 'Updates konnten nicht geprüft werden',
+    download: 'Herunterladen',
     privacyPolicyTitle: 'Datenschutzerklärung',
     privacyOverviewTitle: '1. Übersicht',
     privacyOverviewText: 'Echo ist eine Desktop-Anwendung zur Transkription von Audio- und Videodateien mittels lokaler künstlicher Intelligenz. Datenschutz ist ein Grundprinzip — die gesamte Verarbeitung erfolgt lokal auf Ihrem Computer.',
@@ -640,6 +664,12 @@ export const translations: Record<UILocale, Translations> = {
     whisperCredit: 'whisper.cpp (MIT) — Reconnaissance vocale',
     ffmpegCredit: 'ffmpeg 8.1 (GPL) — Conversion vidéo',
     showOnboarding: "Revoir l'introduction",
+    checkForUpdates: 'Rechercher des mises à jour',
+    checking: 'Vérification...',
+    updateAvailable: 'Version {version} disponible',
+    updateNotAvailable: 'Vous utilisez la dernière version',
+    updateError: 'Impossible de vérifier les mises à jour',
+    download: 'Télécharger',
     privacyPolicyTitle: 'Politique de confidentialité',
     privacyOverviewTitle: '1. Aperçu',
     privacyOverviewText: "Echo est une application de bureau qui transcrit les fichiers audio et vidéo à l'aide d'une intelligence artificielle locale. La confidentialité est un principe fondamental — tout le traitement se fait localement sur votre ordinateur.",

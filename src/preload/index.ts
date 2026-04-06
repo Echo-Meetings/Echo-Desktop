@@ -95,6 +95,19 @@ const electronAPI = {
     showPrivacyPolicy: (locale?: string): Promise<boolean> => ipcRenderer.invoke('settings:showPrivacyPolicy', locale)
   },
 
+  // Update check
+  update: {
+    check: (): Promise<{
+      hasUpdate?: boolean
+      currentVersion?: string
+      latestVersion?: string
+      releaseUrl?: string
+      error?: string
+    }> => ipcRenderer.invoke('update:check'),
+    openRelease: (url: string): Promise<void> => ipcRenderer.invoke('update:openRelease', url),
+    getVersion: (): Promise<string> => ipcRenderer.invoke('update:getVersion')
+  },
+
   // App lifecycle
   app: {
     setActiveSessions: (active: boolean): Promise<void> =>
