@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '@/stores/appStore'
 import { SUPPORTED_LANGUAGES } from '@/types/models'
-import { useT } from '@/i18n'
+import { useT, fmt } from '@/i18n'
 import { UI_LANGUAGES } from '@/i18n/translations'
 import { ComboBox } from './ComboBox'
 import { Button } from './Button'
@@ -18,6 +18,26 @@ export function Settings({ onClose }: SettingsProps) {
   const [privacyConsent, setPrivacyConsent] = useState(false)
   const [modelInfo, setModelInfo] = useState<{ size: number; path: string } | null>(null)
   const [modelDeleting, setModelDeleting] = useState(false)
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'latest' | 'error'>('idle')
+  const [updateInfo, setUpdateInfo] = useState<{ latestVersion?: string; releaseUrl?: string }>({})
+
+  useEffect(() => {
+    window.electronAPI.update.getVersion().then(setAppVersion)
+  }, [])
+
+  const handleCheckUpdate = async () => {
+    setUpdateStatus('checking')
+    const result = await window.electronAPI.update.check()
+    if (result.error) {
+      setUpdateStatus('error')
+    } else if (result.hasUpdate) {
+      setUpdateStatus('available')
+      setUpdateInfo({ latestVersion: result.latestVersion, releaseUrl: result.releaseUrl })
+    } else {
+      setUpdateStatus('latest')
+    }
+  }
 
   useEffect(() => {
     window.electronAPI.settings.getStorageDirectory().then(setStorageDir)
@@ -192,7 +212,26 @@ export function Settings({ onClose }: SettingsProps) {
           <div style={styles.card}>
             <div style={styles.cardRow}>
               <div style={styles.rowLabel}>{t.version}</div>
-              <div style={styles.rowValue}>1.0.0</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={styles.rowValue}>{appVersion}</div>
+                {updateStatus === 'idle' && (
+                  <Button size="small" onClick={handleCheckUpdate}>{t.checkForUpdates}</Button>
+                )}
+                {updateStatus === 'checking' && (
+                  <span style={{ fontSize: 12, color: 'var(--color-secondary)' }}>{t.checking}</span>
+                )}
+                {updateStatus === 'available' && (
+                  <Button size="small" onClick={() => window.electronAPI.update.openRelease(updateInfo.releaseUrl!)}>
+                    {fmt(t.updateAvailable, { version: updateInfo.latestVersion! })} — {t.download}
+                  </Button>
+                )}
+                {updateStatus === 'latest' && (
+                  <span style={{ fontSize: 12, color: '#22c55e' }}>{t.updateNotAvailable}</span>
+                )}
+                {updateStatus === 'error' && (
+                  <span style={{ fontSize: 12, color: '#ef4444' }}>{t.updateError}</span>
+                )}
+              </div>
             </div>
             <div style={styles.cardDivider} />
             <div style={styles.cardRow}>

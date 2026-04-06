@@ -127,6 +127,12 @@ export interface Translations {
   whisperCredit: string
   ffmpegCredit: string
   showOnboarding: string
+  checkForUpdates: string
+  checking: string
+  updateAvailable: string
+  updateNotAvailable: string
+  updateError: string
+  download: string
 
   // Model management
   modelSection: string
@@ -277,6 +283,12 @@ export const translations: Record<UILocale, Translations> = {
     deleteModelConfirm: 'This will delete the AI model (~1.5 GB). You can re-download it anytime. Continue?',
     modelDeleting: 'Deleting...',
     redownloadModel: 'Re-download Model',
+    checkForUpdates: 'Check for Updates',
+    checking: 'Checking...',
+    updateAvailable: 'Version {version} available',
+    updateNotAvailable: 'You are on the latest version',
+    updateError: 'Could not check for updates',
+    download: 'Download',
     privacyPolicyTitle: 'Privacy Policy',
     privacyOverviewTitle: '1. Overview',
     privacyOverviewText: 'Echo is a desktop application that transcribes audio and video files using on-device artificial intelligence. Privacy is a core design principle — all processing happens locally on your computer.',
@@ -412,6 +424,12 @@ export const translations: Record<UILocale, Translations> = {
     deleteModelConfirm: 'Модель ИИ (~1.5 ГБ) будет удалена. Вы сможете скачать её снова в любое время. Продолжить?',
     modelDeleting: 'Удаление...',
     redownloadModel: 'Скачать модель заново',
+    checkForUpdates: 'Проверить обновления',
+    checking: 'Проверка...',
+    updateAvailable: 'Доступна версия {version}',
+    updateNotAvailable: 'Установлена последняя версия',
+    updateError: 'Не удалось проверить обновления',
+    download: 'Скачать',
     privacyPolicyTitle: 'Политика конфиденциальности',
     privacyOverviewTitle: '1. Обзор',
     privacyOverviewText: 'Echo — это настольное приложение для транскрипции аудио и видео файлов с помощью локального искусственного интеллекта. Конфиденциальность является основным принципом — вся обработка происходит на вашем компьютере.',
@@ -547,6 +565,12 @@ export const translations: Record<UILocale, Translations> = {
     deleteModelConfirm: 'Das KI-Modell (~1,5 GB) wird gelöscht. Sie können es jederzeit erneut herunterladen. Fortfahren?',
     modelDeleting: 'Wird gelöscht...',
     redownloadModel: 'Modell erneut herunterladen',
+    checkForUpdates: 'Nach Updates suchen',
+    checking: 'Prüfe...',
+    updateAvailable: 'Version {version} verfügbar',
+    updateNotAvailable: 'Sie verwenden die neueste Version',
+    updateError: 'Updates konnten nicht geprüft werden',
+    download: 'Herunterladen',
     privacyPolicyTitle: 'Datenschutzerklärung',
     privacyOverviewTitle: '1. Übersicht',
     privacyOverviewText: 'Echo ist eine Desktop-Anwendung zur Transkription von Audio- und Videodateien mittels lokaler künstlicher Intelligenz. Datenschutz ist ein Grundprinzip — die gesamte Verarbeitung erfolgt lokal auf Ihrem Computer.',
@@ -682,6 +706,12 @@ export const translations: Record<UILocale, Translations> = {
     deleteModelConfirm: "Le modèle IA (~1,5 Go) sera supprimé. Vous pourrez le retélécharger à tout moment. Continuer ?",
     modelDeleting: 'Suppression...',
     redownloadModel: 'Retélécharger le modèle',
+    checkForUpdates: 'Rechercher des mises à jour',
+    checking: 'Vérification...',
+    updateAvailable: 'Version {version} disponible',
+    updateNotAvailable: 'Vous utilisez la dernière version',
+    updateError: 'Impossible de vérifier les mises à jour',
+    download: 'Télécharger',
     privacyPolicyTitle: 'Politique de confidentialité',
     privacyOverviewTitle: '1. Aperçu',
     privacyOverviewText: "Echo est une application de bureau qui transcrit les fichiers audio et vidéo à l'aide d'une intelligence artificielle locale. La confidentialité est un principe fondamental — tout le traitement se fait localement sur votre ordinateur.",

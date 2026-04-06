@@ -29,7 +29,8 @@ export function Sidebar() {
     today: t.filterToday,
     yesterday: t.filterYesterday,
     last7Days: t.filter7d,
-    last30Days: t.filter30d
+    last30Days: t.filter30d,
+    custom: ''
   }
 
   const activeSessions = queueSessions.filter(

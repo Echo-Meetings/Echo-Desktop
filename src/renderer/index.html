@@ -6,10 +6,257 @@
     <title>Echo</title>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' file: blob: local-media:; img-src 'self' file: blob: data: local-media:"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src 'self' file: blob: local-media:; img-src 'self' file: blob: data: local-media:"
     />
+    <style>
+      /* Preloader theme tokens — match tokens.css */
+      :root {
+        --loader-bg: #111111;
+        --loader-fg: #f0f0f0;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --loader-bg: #ffffff;
+          --loader-fg: #0a0a0a;
+        }
+      }
+
+      /* Preloader styles */
+      body.is-loading { overflow: hidden !important; height: 100vh; }
+
+      .page-loader {
+        position: fixed; inset: 0; z-index: 9999;
+        background: var(--loader-bg);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+      .page-loader.is-done { opacity: 0; transform: scale(1.02); pointer-events: none; }
+      .page-loader.is-done .loader-content { animation: loader-fade-up 0.4s ease forwards; }
+
+      .loader-content { display: flex; flex-direction: column; align-items: center; gap: 32px; }
+
+      .loader-logo {
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+        color: var(--loader-fg); margin-bottom: 32px;
+      }
+      .loader-logo svg { width: 30px; height: 30px; }
+      .loader-logo-text { font-size: 22px; font-weight: 700; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; }
+
+      .loader-visual {
+        position: relative; width: min(280px, 80vw); height: 68px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .loader-waves { width: 100%; height: 68px; }
+
+      .loader-bar {
+        fill: #5A82AA; transform-origin: center;
+        animation: loader-bar-pulse 1.4s ease-in-out infinite;
+      }
+      .loader-bar:nth-child(1)  { animation-delay: 0.00s; fill: #5A82AA; }
+      .loader-bar:nth-child(2)  { animation-delay: 0.05s; fill: #6A7AAE; }
+      .loader-bar:nth-child(3)  { animation-delay: 0.10s; fill: #7A72B0; }
+      .loader-bar:nth-child(4)  { animation-delay: 0.15s; fill: #8264A0; }
+      .loader-bar:nth-child(5)  { animation-delay: 0.20s; fill: #6A7AAE; }
+      .loader-bar:nth-child(6)  { animation-delay: 0.25s; fill: #5A82AA; }
+      .loader-bar:nth-child(7)  { animation-delay: 0.30s; fill: #1E8C82; }
+      .loader-bar:nth-child(8)  { animation-delay: 0.35s; fill: #2AAA9E; }
+      .loader-bar:nth-child(9)  { animation-delay: 0.40s; fill: #5A82AA; }
+      .loader-bar:nth-child(10) { animation-delay: 0.45s; fill: #8264A0; }
+      .loader-bar:nth-child(11) { animation-delay: 0.50s; fill: #8264A0; }
+      .loader-bar:nth-child(12) { animation-delay: 0.45s; fill: #5A82AA; }
+      .loader-bar:nth-child(13) { animation-delay: 0.40s; fill: #2AAA9E; }
+      .loader-bar:nth-child(14) { animation-delay: 0.35s; fill: #1E8C82; }
+      .loader-bar:nth-child(15) { animation-delay: 0.30s; fill: #5A82AA; }
+      .loader-bar:nth-child(16) { animation-delay: 0.25s; fill: #6A7AAE; }
+      .loader-bar:nth-child(17) { animation-delay: 0.20s; fill: #8264A0; }
+      .loader-bar:nth-child(18) { animation-delay: 0.15s; fill: #7A72B0; }
+      .loader-bar:nth-child(19) { animation-delay: 0.10s; fill: #6A7AAE; }
+      .loader-bar:nth-child(20) { animation-delay: 0.05s; fill: #5A82AA; }
+
+      @keyframes loader-bar-pulse {
+        0%, 100% { transform: scaleY(0.5); opacity: 0.4; }
+        50% { transform: scaleY(1); opacity: 1; }
+      }
+
+      .loader-lock {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        color: var(--loader-fg); opacity: 0.85; width: 26px; height: 34px;
+      }
+      .loader-shackle { animation: loader-lock-close 1.2s ease-in-out 0.5s forwards; }
+      @keyframes loader-lock-close {
+        0%   { d: path("M8 14V8a4 4 0 0 1 8 0v6"); }
+        100% { d: path("M8 14V10a4 4 0 0 1 8 0v4"); }
+      }
+
+      .loader-fact {
+        font-size: clamp(17px, 5vw, 24px); font-weight: 600;
+        line-height: 1.35; letter-spacing: -0.015em;
+        color: var(--loader-fg); opacity: 0; text-align: center;
+        max-width: min(420px, 85vw); min-height: 56px; padding: 0 16px;
+        display: flex; align-items: center; justify-content: center;
+        transition: opacity 0.3s ease;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      }
+      .loader-fact.is-visible { opacity: 0.4; }
+
+      .loader-progress { display: flex; align-items: baseline; gap: 2px; }
+      .loader-pct {
+        font-size: 18px; font-weight: 700; color: var(--loader-fg); opacity: 0.35;
+        font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      }
+      .loader-pct-sign {
+        font-size: 13px; font-weight: 400; color: var(--loader-fg); opacity: 0.2;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      @keyframes loader-fade-up { to { opacity: 0; transform: translateY(-10px); } }
+
+      @media (prefers-reduced-motion: reduce) {
+        body.is-loading { overflow: visible !important; height: auto; }
+        .page-loader { display: none; }
+      }
+    </style>
   </head>
-  <body>
+  <body class="is-loading">
+    <div id="page-loader" class="page-loader">
+      <div class="loader-content">
+        <div class="loader-logo">
+          <svg width="30" height="30" viewBox="118 150 276 212">
+            <rect x="128" y="218" width="28" height="76" rx="14" fill="currentColor"/>
+            <rect x="185" y="186" width="28" height="140" rx="14" fill="currentColor"/>
+            <rect x="242" y="160" width="28" height="192" rx="14" fill="currentColor"/>
+            <rect x="299" y="186" width="28" height="140" rx="14" fill="currentColor"/>
+            <rect x="356" y="218" width="28" height="76" rx="14" fill="currentColor"/>
+          </svg>
+          <span class="loader-logo-text">Echo</span>
+        </div>
+
+        <div class="loader-visual">
+          <svg class="loader-waves" width="200" height="48" viewBox="0 0 200 48">
+            <rect class="loader-bar" x="14" y="18" width="4" height="12" rx="2"/>
+            <rect class="loader-bar" x="22" y="12" width="4" height="24" rx="2"/>
+            <rect class="loader-bar" x="30" y="8"  width="4" height="32" rx="2"/>
+            <rect class="loader-bar" x="38" y="4"  width="4" height="40" rx="2"/>
+            <rect class="loader-bar" x="46" y="8"  width="4" height="32" rx="2"/>
+            <rect class="loader-bar" x="54" y="6"  width="4" height="36" rx="2"/>
+            <rect class="loader-bar" x="62" y="10" width="4" height="28" rx="2"/>
+            <rect class="loader-bar" x="70" y="4"  width="4" height="40" rx="2"/>
+            <rect class="loader-bar" x="78" y="12" width="4" height="24" rx="2"/>
+            <rect class="loader-bar" x="86" y="16" width="4" height="16" rx="2"/>
+            <rect class="loader-bar" x="110" y="16" width="4" height="16" rx="2"/>
+            <rect class="loader-bar" x="118" y="12" width="4" height="24" rx="2"/>
+            <rect class="loader-bar" x="126" y="4"  width="4" height="40" rx="2"/>
+            <rect class="loader-bar" x="134" y="10" width="4" height="28" rx="2"/>
+            <rect class="loader-bar" x="142" y="6"  width="4" height="36" rx="2"/>
+            <rect class="loader-bar" x="150" y="8"  width="4" height="32" rx="2"/>
+            <rect class="loader-bar" x="158" y="4"  width="4" height="40" rx="2"/>
+            <rect class="loader-bar" x="166" y="8"  width="4" height="32" rx="2"/>
+            <rect class="loader-bar" x="174" y="12" width="4" height="24" rx="2"/>
+            <rect class="loader-bar" x="182" y="18" width="4" height="12" rx="2"/>
+          </svg>
+          <svg class="loader-lock" width="20" height="26" viewBox="0 0 24 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="14" width="18" height="15" rx="3"/>
+            <circle cx="12" cy="21" r="2"/>
+            <path class="loader-shackle" d="M8 14V10a4 4 0 0 1 8 0v4"/>
+          </svg>
+        </div>
+
+        <p id="loader-fact" class="loader-fact"></p>
+
+        <div class="loader-progress">
+          <span id="loader-pct" class="loader-pct">0</span><span class="loader-pct-sign">%</span>
+        </div>
+      </div>
+    </div>
+
+    <script type="application/json" id="loader-facts-data">
+      [
+        "Echo transcribes audio locally on your device",
+        "Your recordings never leave your computer",
+        "Powered by whisper.cpp — fast, private, offline",
+        "Supports 90+ languages automatically",
+        "No internet connection required",
+        "Built for privacy-first transcription"
+      ]
+    </script>
+
+    <script>
+      (function() {
+        var pctEl = document.getElementById('loader-pct');
+        var factEl = document.getElementById('loader-fact');
+        var displayPct = 0;
+        var targetPct = 0;
+        var resolved = false;
+
+        // Rotating facts
+        var factsRaw = document.getElementById('loader-facts-data');
+        var facts = factsRaw ? JSON.parse(factsRaw.textContent || '[]') : [];
+        for (var i = facts.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var tmp = facts[i]; facts[i] = facts[j]; facts[j] = tmp;
+        }
+        var factIndex = 0;
+
+        function showFact() {
+          if (!factEl || facts.length === 0) return;
+          factEl.classList.remove('is-visible');
+          setTimeout(function() {
+            factEl.textContent = facts[factIndex];
+            factEl.classList.add('is-visible');
+            factIndex = (factIndex + 1) % facts.length;
+          }, 300);
+        }
+        showFact();
+        var factInterval = setInterval(showFact, 2800);
+
+        // Percentage counter
+        function tickPct() {
+          if (displayPct < targetPct) {
+            displayPct = Math.min(displayPct + 1, targetPct);
+            if (pctEl) pctEl.textContent = String(displayPct);
+          }
+          if (displayPct < 100) requestAnimationFrame(tickPct);
+        }
+        requestAnimationFrame(tickPct);
+
+        function setProgress(pct) {
+          targetPct = Math.max(targetPct, Math.min(pct, 100));
+        }
+
+        // Safety timeout: always unlock after 5s
+        var safetyTimeout = setTimeout(function() {
+          if (!resolved) { resolved = true; finishLoading(); }
+        }, 5000);
+
+        function finishLoading() {
+          clearTimeout(safetyTimeout);
+          targetPct = 100;
+          var waitForHundred = setInterval(function() {
+            if (displayPct >= 100) {
+              clearInterval(waitForHundred);
+              setTimeout(unlockPage, 200);
+            }
+          }, 16);
+        }
+
+        function unlockPage() {
+          clearInterval(factInterval);
+          document.body.classList.remove('is-loading');
+          var loader = document.getElementById('page-loader');
+          if (loader) {
+            loader.classList.add('is-done');
+            setTimeout(function() { loader.remove(); }, 600);
+          }
+        }
+
+        // Expose to React
+        window.setProgress = setProgress;
+        window.finishLoading = finishLoading;
+      })();
+    </script>
+
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
   </body>

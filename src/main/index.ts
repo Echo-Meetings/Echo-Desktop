@@ -8,6 +8,7 @@ import { registerExportIpc } from './ipc/export'
 import { registerTranscriptionIpc } from './ipc/transcription'
 import { registerPlaybackIpc } from './ipc/playback'
 import { registerModelIpc } from './ipc/model'
+import { registerUpdateIpc } from './ipc/update'
 
 let mainWindow: BrowserWindow | null = null
 let hasActiveSessions = false
@@ -129,12 +130,13 @@ app.whenReady().then(() => {
   registerTranscriptionIpc()
   registerPlaybackIpc()
   registerModelIpc()
+  registerUpdateIpc()
 
   // Set dock icon on macOS (ensures custom icon in dev mode too)
   if (process.platform === 'darwin') {
     const dockIcon = nativeImage.createFromPath(join(__dirname, '../../resources/icon.png'))
     if (!dockIcon.isEmpty()) {
-      app.dock.setIcon(dockIcon)
+      app.dock?.setIcon(dockIcon)
     }
   }
 

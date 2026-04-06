@@ -36,36 +36,37 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
-  // Load settings and history on mount
+  // Load settings and history on mount — all IPC calls in parallel
   useEffect(() => {
     async function loadSettings() {
-      const onboarded = await window.electronAPI.settings.get('hasCompletedOnboarding')
-      if (onboarded) useAppStore.getState().setHasCompletedOnboarding(true)
+      const [onboarded, lang, savedUiLang, modelStatus, depsStatus, entries, { detectSystemLocale }] =
+        await Promise.all([
+          window.electronAPI.settings.get('hasCompletedOnboarding'),
+          window.electronAPI.settings.get('languageOverride'),
+          window.electronAPI.settings.get('uiLanguage'),
+          window.electronAPI.model.getStatus(),
+          window.electronAPI.deps.getStatus(),
+          window.electronAPI.history.getAll(),
+          import('@/i18n')
+        ])
 
-      const lang = await window.electronAPI.settings.get('languageOverride')
+      if (onboarded) useAppStore.getState().setHasCompletedOnboarding(true)
       if (typeof lang === 'string') useAppStore.getState().setLanguageOverride(lang)
 
-      // Load UI language (auto-detect if not set)
-      const { detectSystemLocale } = await import('@/i18n')
-      const savedUiLang = await window.electronAPI.settings.get('uiLanguage')
       if (savedUiLang && typeof savedUiLang === 'string') {
         useAppStore.getState().setUiLanguage(savedUiLang as 'en' | 'ru' | 'de' | 'fr')
       } else {
         useAppStore.getState().setUiLanguage(detectSystemLocale())
       }
 
-      // Check if model AND dependencies are ready
-      const [modelStatus, depsStatus] = await Promise.all([
-        window.electronAPI.model.getStatus(),
-        window.electronAPI.deps.getStatus()
-      ])
       if (modelStatus.loaded && depsStatus.whisperAvailable && depsStatus.ffmpegAvailable) {
         useAppStore.getState().setModelReady(true)
       }
 
-      // Load history
-      const entries = await window.electronAPI.history.getAll()
       useAppStore.getState().setHistoryEntries(entries as never[])
+
+      // Dismiss preloader
+      if (typeof window.finishLoading === 'function') window.finishLoading()
     }
     loadSettings()
   }, [])
