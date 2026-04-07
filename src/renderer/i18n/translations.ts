@@ -191,6 +191,7 @@ export interface Translations {
   diagnosticsMissing: string
   diagnosticsReinstall: string
   diagnosticsReinstallConfirm: string
+  diagnosticsReinstallFFmpegConfirm: string
   diagnosticsReinstalling: string
   diagnosticsDownloadVcRuntime: string
 
@@ -218,11 +219,20 @@ export interface Translations {
   modelLargeV3Turbo: string
   modelLargeV3TurboQ5: string
 
+  // Model categories
+  modelCategoryTranscription: string
+  modelCategoryMeetingNotes: string
+
   // Hardware
   hardwareSection: string
   cpuCores: string
   totalMemory: string
+  memoryUsage: string
   threadsUsed: string
+
+  // Session History
+  sessionHistorySection: string
+  sessionAudio: string
 
   // Performance
   performanceSection: string
@@ -420,6 +430,7 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsMissing: 'Missing: {dlls}',
     diagnosticsReinstall: 'Reinstall',
     diagnosticsReinstallConfirm: 'This will delete the whisper-cli binary and re-download it. Continue?',
+    diagnosticsReinstallFFmpegConfirm: 'This will re-download ffmpeg. Continue?',
     diagnosticsReinstalling: 'Reinstalling...',
     diagnosticsDownloadVcRuntime: 'Download',
     remaining: 'remaining',
@@ -442,10 +453,15 @@ export const translations: Record<UILocale, Translations> = {
     modelMedium: 'Medium',
     modelLargeV3Turbo: 'Large V3 Turbo',
     modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    modelCategoryTranscription: 'TRANSCRIPTION',
+    modelCategoryMeetingNotes: 'MEETING NOTES',
     hardwareSection: 'Hardware',
     cpuCores: 'CPU Cores',
     totalMemory: 'Total Memory',
+    memoryUsage: 'RAM Usage',
     threadsUsed: 'Threads Used',
+    sessionHistorySection: 'SESSION HISTORY',
+    sessionAudio: 'audio',
     performanceSection: 'Performance',
     gpuAcceleration: 'GPU Acceleration',
     gpuName: 'GPU',
@@ -638,6 +654,7 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsMissing: 'Отсутствуют: {dlls}',
     diagnosticsReinstall: 'Переустановить',
     diagnosticsReinstallConfirm: 'Бинарник whisper-cli будет удалён и скачан заново. Продолжить?',
+    diagnosticsReinstallFFmpegConfirm: 'ffmpeg будет скачан заново. Продолжить?',
     diagnosticsReinstalling: 'Переустановка...',
     diagnosticsDownloadVcRuntime: 'Скачать',
     remaining: 'осталось',
@@ -660,10 +677,15 @@ export const translations: Record<UILocale, Translations> = {
     modelMedium: 'Medium',
     modelLargeV3Turbo: 'Large V3 Turbo',
     modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    modelCategoryTranscription: 'ТРАНСКРИПЦИЯ',
+    modelCategoryMeetingNotes: 'ЗАМЕТКИ СОВЕЩАНИЙ',
     hardwareSection: 'Оборудование',
     cpuCores: 'Ядра CPU',
     totalMemory: 'Общая память',
+    memoryUsage: 'Использование RAM',
     threadsUsed: 'Используемые потоки',
+    sessionHistorySection: 'ИСТОРИЯ СЕССИЙ',
+    sessionAudio: 'аудио',
     performanceSection: 'Производительность',
     gpuAcceleration: 'Ускорение GPU',
     gpuName: 'GPU',
@@ -856,6 +878,7 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsMissing: 'Fehlend: {dlls}',
     diagnosticsReinstall: 'Neu installieren',
     diagnosticsReinstallConfirm: 'whisper-cli wird gelöscht und neu heruntergeladen. Fortfahren?',
+    diagnosticsReinstallFFmpegConfirm: 'ffmpeg wird neu heruntergeladen. Fortfahren?',
     diagnosticsReinstalling: 'Neu installieren...',
     diagnosticsDownloadVcRuntime: 'Herunterladen',
     remaining: 'verbleibend',
@@ -878,10 +901,15 @@ export const translations: Record<UILocale, Translations> = {
     modelMedium: 'Medium',
     modelLargeV3Turbo: 'Large V3 Turbo',
     modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    modelCategoryTranscription: 'TRANSKRIPTION',
+    modelCategoryMeetingNotes: 'MEETING-NOTIZEN',
     hardwareSection: 'Hardware',
     cpuCores: 'CPU-Kerne',
     totalMemory: 'Gesamtspeicher',
+    memoryUsage: 'RAM-Nutzung',
     threadsUsed: 'Verwendete Threads',
+    sessionHistorySection: 'SITZUNGSVERLAUF',
+    sessionAudio: 'Audio',
     performanceSection: 'Leistung',
     gpuAcceleration: 'GPU-Beschleunigung',
     gpuName: 'GPU',
@@ -1074,6 +1102,7 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsMissing: 'Manquants : {dlls}',
     diagnosticsReinstall: 'Réinstaller',
     diagnosticsReinstallConfirm: 'whisper-cli sera supprimé et retéléchargé. Continuer ?',
+    diagnosticsReinstallFFmpegConfirm: 'ffmpeg sera retéléchargé. Continuer ?',
     diagnosticsReinstalling: 'Réinstallation...',
     diagnosticsDownloadVcRuntime: 'Télécharger',
     remaining: 'restant',
@@ -1096,10 +1125,15 @@ export const translations: Record<UILocale, Translations> = {
     modelMedium: 'Medium',
     modelLargeV3Turbo: 'Large V3 Turbo',
     modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    modelCategoryTranscription: 'TRANSCRIPTION',
+    modelCategoryMeetingNotes: 'NOTES DE RÉUNION',
     hardwareSection: 'Matériel',
     cpuCores: 'Cœurs CPU',
     totalMemory: 'Mémoire totale',
+    memoryUsage: 'Utilisation RAM',
     threadsUsed: 'Threads utilisés',
+    sessionHistorySection: 'HISTORIQUE DES SESSIONS',
+    sessionAudio: 'audio',
     performanceSection: 'Performance',
     gpuAcceleration: 'Accélération GPU',
     gpuName: 'GPU',

@@ -74,11 +74,22 @@ export function registerModelIpc(): void {
     try {
       await modelManager.downloadModel((fraction) => {
         safeSend('model:downloadProgress', fraction)
-      }, modelId)
+      }, modelId, (info) => {
+        safeSend('model:downloadDetailedProgress', info)
+      })
       safeSend('model:loaded')
     } catch (err) {
-      console.error('Model download failed:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg === 'Download cancelled') {
+        safeSend('model:downloadCancelled')
+      } else {
+        console.error('Model download failed:', err)
+      }
     }
+  })
+
+  ipcMain.handle('model:cancelDownload', async () => {
+    modelManager.cancelDownload()
   })
 
   ipcMain.handle('model:getModelsDiskUsage', async () => {

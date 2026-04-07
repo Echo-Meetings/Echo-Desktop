@@ -134,9 +134,11 @@ export class TranscriptionService {
     if (this.gpuBinarySupport === 'cuda') {
       spawnEnv.CUDA_VISIBLE_DEVICES = spawnEnv.CUDA_VISIBLE_DEVICES || '0'
     }
-    // macOS: set Metal shader search path
+    // macOS: set Metal shader search path and library path for dylibs
     if (process.platform === 'darwin') {
-      spawnEnv.GGML_METAL_PATH_RESOURCES = dirname(whisperPath)
+      const whisperDir = dirname(whisperPath)
+      spawnEnv.GGML_METAL_PATH_RESOURCES = whisperDir
+      spawnEnv.DYLD_LIBRARY_PATH = whisperDir
     }
 
     return new Promise((resolve, reject) => {
