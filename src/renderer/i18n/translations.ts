@@ -121,6 +121,23 @@ export interface Translations {
   revealInFileManager: string
   change: string
   storageUsed: string
+
+  // Backup & Restore
+  backupSection: string
+  backupDirectory: string
+  backupDirectoryNotSet: string
+  backupChangeDirectory: string
+  createBackup: string
+  restoreFromBackup: string
+  backupInProgress: string
+  restoreInProgress: string
+  backupComplete: string
+  restoreComplete: string
+  backupFailed: string
+  restoreFailed: string
+  backupConfirmRestore: string
+  backupNoManifest: string
+
   privacySection: string
   privacyDesc: string
   privacyConsent: string
@@ -350,6 +367,20 @@ export const translations: Record<UILocale, Translations> = {
     revealInFileManager: 'Show in File Manager',
     change: 'Change...',
     storageUsed: 'Storage used',
+    backupSection: 'BACKUP & RESTORE',
+    backupDirectory: 'Backup folder',
+    backupDirectoryNotSet: 'Not configured',
+    backupChangeDirectory: 'Change...',
+    createBackup: 'Create Backup',
+    restoreFromBackup: 'Restore from Backup',
+    backupInProgress: 'Backing up... {progress}%',
+    restoreInProgress: 'Restoring... {progress}%',
+    backupComplete: 'Backup complete: {count} entries ({size})',
+    restoreComplete: 'Restore complete: {count} restored, {skipped} skipped',
+    backupFailed: 'Backup failed: {error}',
+    restoreFailed: 'Restore failed: {error}',
+    backupConfirmRestore: 'Restore {count} entries ({size}) from this backup? Existing entries will be skipped.',
+    backupNoManifest: 'No valid Echo backup found in the selected folder.',
     privacySection: 'PRIVACY & LEGAL',
     privacyDesc: 'All processing happens locally on your device. No data is sent to any server.',
     privacyConsent: 'Privacy consent',
@@ -562,6 +593,20 @@ export const translations: Record<UILocale, Translations> = {
     revealInFileManager: 'Показать в файловом менеджере',
     change: 'Изменить...',
     storageUsed: 'Использовано',
+    backupSection: 'РЕЗЕРВНОЕ КОПИРОВАНИЕ',
+    backupDirectory: 'Папка для бэкапов',
+    backupDirectoryNotSet: 'Не выбрана',
+    backupChangeDirectory: 'Изменить...',
+    createBackup: 'Создать бэкап',
+    restoreFromBackup: 'Восстановить из бэкапа',
+    backupInProgress: 'Создание бэкапа... {progress}%',
+    restoreInProgress: 'Восстановление... {progress}%',
+    backupComplete: 'Бэкап создан: {count} записей ({size})',
+    restoreComplete: 'Восстановлено: {count}, пропущено: {skipped}',
+    backupFailed: 'Ошибка бэкапа: {error}',
+    restoreFailed: 'Ошибка восстановления: {error}',
+    backupConfirmRestore: 'Восстановить {count} записей ({size}) из этого бэкапа? Существующие записи будут пропущены.',
+    backupNoManifest: 'В выбранной папке не найден бэкап Echo.',
     privacySection: 'КОНФИДЕНЦИАЛЬНОСТЬ',
     privacyDesc: 'Вся обработка происходит локально на вашем устройстве. Никакие данные не отправляются на сервер.',
     privacyConsent: 'Согласие на конфиденциальность',
@@ -774,6 +819,20 @@ export const translations: Record<UILocale, Translations> = {
     revealInFileManager: 'Im Dateimanager anzeigen',
     change: 'Ändern...',
     storageUsed: 'Speicher belegt',
+    backupSection: 'SICHERUNG & WIEDERHERSTELLUNG',
+    backupDirectory: 'Sicherungsordner',
+    backupDirectoryNotSet: 'Nicht konfiguriert',
+    backupChangeDirectory: 'Ändern...',
+    createBackup: 'Sicherung erstellen',
+    restoreFromBackup: 'Aus Sicherung wiederherstellen',
+    backupInProgress: 'Sicherung läuft... {progress}%',
+    restoreInProgress: 'Wiederherstellung... {progress}%',
+    backupComplete: 'Sicherung abgeschlossen: {count} Einträge ({size})',
+    restoreComplete: 'Wiederherstellung abgeschlossen: {count} wiederhergestellt, {skipped} übersprungen',
+    backupFailed: 'Sicherung fehlgeschlagen: {error}',
+    restoreFailed: 'Wiederherstellung fehlgeschlagen: {error}',
+    backupConfirmRestore: '{count} Einträge ({size}) aus dieser Sicherung wiederherstellen? Vorhandene Einträge werden übersprungen.',
+    backupNoManifest: 'Kein gültiges Echo-Backup im ausgewählten Ordner gefunden.',
     privacySection: 'DATENSCHUTZ & RECHT',
     privacyDesc: 'Die gesamte Verarbeitung erfolgt lokal auf Ihrem Gerät. Es werden keine Daten an Server gesendet.',
     privacyConsent: 'Datenschutz-Einwilligung',
@@ -986,6 +1045,20 @@ export const translations: Record<UILocale, Translations> = {
     revealInFileManager: 'Ouvrir dans le gestionnaire de fichiers',
     change: 'Modifier...',
     storageUsed: 'Espace utilisé',
+    backupSection: 'SAUVEGARDE & RESTAURATION',
+    backupDirectory: 'Dossier de sauvegarde',
+    backupDirectoryNotSet: 'Non configuré',
+    backupChangeDirectory: 'Modifier...',
+    createBackup: 'Créer une sauvegarde',
+    restoreFromBackup: 'Restaurer depuis une sauvegarde',
+    backupInProgress: 'Sauvegarde en cours... {progress}%',
+    restoreInProgress: 'Restauration en cours... {progress}%',
+    backupComplete: 'Sauvegarde terminée : {count} entrées ({size})',
+    restoreComplete: 'Restauration terminée : {count} restaurées, {skipped} ignorées',
+    backupFailed: 'Échec de la sauvegarde : {error}',
+    restoreFailed: 'Échec de la restauration : {error}',
+    backupConfirmRestore: 'Restaurer {count} entrées ({size}) depuis cette sauvegarde ? Les entrées existantes seront ignorées.',
+    backupNoManifest: 'Aucune sauvegarde Echo valide trouvée dans le dossier sélectionné.',
     privacySection: 'CONFIDENTIALITÉ & JURIDIQUE',
     privacyDesc: "Tout le traitement s'effectue localement sur votre appareil. Aucune donnée n'est envoyée à un serveur.",
     privacyConsent: 'Consentement de confidentialité',

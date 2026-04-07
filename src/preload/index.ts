@@ -136,7 +136,15 @@ const electronAPI = {
       ipcRenderer.invoke('settings:openDirectoryPicker'),
     getStorageSize: (): Promise<number> => ipcRenderer.invoke('settings:getStorageSize'),
     revealStorage: (): Promise<void> => ipcRenderer.invoke('settings:revealStorage'),
-    showPrivacyPolicy: (locale?: string): Promise<boolean> => ipcRenderer.invoke('settings:showPrivacyPolicy', locale)
+    showPrivacyPolicy: (locale?: string): Promise<boolean> => ipcRenderer.invoke('settings:showPrivacyPolicy', locale),
+    getBackupDirectory: (): Promise<string> => ipcRenderer.invoke('settings:getBackupDirectory'),
+    setBackupDirectory: (path: string): Promise<void> => ipcRenderer.invoke('settings:setBackupDirectory', path),
+    createBackup: (): Promise<{ success?: boolean; path?: string; entryCount?: number; totalSize?: number; error?: string }> =>
+      ipcRenderer.invoke('settings:createBackup'),
+    readBackupManifest: (dirPath: string): Promise<{ manifest?: { version: string; appVersion: string; createdAt: string; entryCount: number; totalSizeBytes: number }; error?: string }> =>
+      ipcRenderer.invoke('settings:readBackupManifest', dirPath),
+    restoreBackup: (dirPath: string): Promise<{ success?: boolean; restoredCount?: number; skippedCount?: number; error?: string }> =>
+      ipcRenderer.invoke('settings:restoreBackup', dirPath)
   },
 
   // Update check
@@ -201,6 +209,8 @@ const electronAPI = {
       'deps:status',
       'deps:allReady',
       'deps:error',
+      // Backup
+      'backup:progress',
       // Theme
       'theme:changed'
     ]

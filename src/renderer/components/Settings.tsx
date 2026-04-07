@@ -60,6 +60,10 @@ export function Settings({ onClose }: SettingsProps) {
   const [threadCount, setThreadCount] = useState<'auto' | number>('auto')
   const [logContent, setLogContent] = useState<string | null>(null)
   const [logLoading, setLogLoading] = useState(false)
+  const [backupDir, setBackupDir] = useState('')
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'backing-up' | 'restoring' | 'done' | 'error'>('idle')
+  const [backupProgress, setBackupProgress] = useState(0)
+  const [backupMessage, setBackupMessage] = useState('')
 
   const sections: Array<{ id: SectionId; label: string }> = [
     { id: 'general', label: t.generalSection },
@@ -100,6 +104,14 @@ export function Settings({ onClose }: SettingsProps) {
     window.electronAPI.settings.get('accelerationMode').then((v) => setAccelerationMode((v as 'gpu' | 'cpu') || 'gpu'))
     window.electronAPI.settings.get('flashAttention').then((v) => setFlashAttention(v !== false))
     window.electronAPI.settings.get('threadCount').then((v) => setThreadCount((v as 'auto' | number) || 'auto'))
+    window.electronAPI.settings.getBackupDirectory().then(setBackupDir)
+  }, [])
+
+  useEffect(() => {
+    const unsub = window.electronAPI.on('backup:progress', (fraction) => {
+      setBackupProgress(Math.round((fraction as number) * 100))
+    })
+    return unsub
   }, [])
 
   const handleLanguageChange = async (code: string) => {
@@ -198,6 +210,60 @@ export function Settings({ onClose }: SettingsProps) {
     await window.electronAPI.settings.set('threadCount', value)
   }
 
+  const handleChangeBackupDir = async () => {
+    const path = await window.electronAPI.settings.openDirectoryPicker()
+    if (path) {
+      await window.electronAPI.settings.setBackupDirectory(path)
+      setBackupDir(path)
+    }
+  }
+
+  const handleCreateBackup = async () => {
+    setBackupStatus('backing-up')
+    setBackupProgress(0)
+    setBackupMessage('')
+    const result = await window.electronAPI.settings.createBackup()
+    if (result.success) {
+      setBackupStatus('done')
+      setBackupMessage(fmt(t.backupComplete, { count: String(result.entryCount || 0), size: formatSize(result.totalSize || 0) }))
+    } else {
+      setBackupStatus('error')
+      setBackupMessage(fmt(t.backupFailed, { error: result.error || 'Unknown error' }))
+    }
+    setTimeout(() => setBackupStatus('idle'), 5000)
+  }
+
+  const handleRestoreBackup = async () => {
+    const dirPath = await window.electronAPI.settings.openDirectoryPicker()
+    if (!dirPath) return
+
+    const manifestResult = await window.electronAPI.settings.readBackupManifest(dirPath)
+    if (manifestResult.error || !manifestResult.manifest) {
+      alert(t.backupNoManifest)
+      return
+    }
+
+    const m = manifestResult.manifest
+    if (!confirm(fmt(t.backupConfirmRestore, { count: String(m.entryCount), size: formatSize(m.totalSizeBytes) }))) return
+
+    setBackupStatus('restoring')
+    setBackupProgress(0)
+    setBackupMessage('')
+    const result = await window.electronAPI.settings.restoreBackup(dirPath)
+    if (result.success) {
+      setBackupStatus('done')
+      setBackupMessage(fmt(t.restoreComplete, { count: String(result.restoredCount || 0), skipped: String(result.skippedCount || 0) }))
+      // Refresh history and storage size
+      const entries = await window.electronAPI.history.getAll()
+      useAppStore.getState().setHistoryEntries(entries as any[])
+      window.electronAPI.settings.getStorageSize().then(setStorageSize)
+    } else {
+      setBackupStatus('error')
+      setBackupMessage(fmt(t.restoreFailed, { error: result.error || 'Unknown error' }))
+    }
+    setTimeout(() => setBackupStatus('idle'), 5000)
+  }
+
   const handleViewPrivacy = () => {
     window.electronAPI.settings.showPrivacyPolicy(uiLanguage)
   }
@@ -247,23 +313,91 @@ export function Settings({ onClose }: SettingsProps) {
 
       case 'storage':
         return (
-          <div style={styles.card}>
-            <div style={styles.cardRow}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={styles.rowLabel}>{t.transcriptsAndMedia}</div>
-                <div style={styles.storagePath}>{storageDir}</div>
+          <>
+            <div style={styles.card}>
+              <div style={styles.cardRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={styles.rowLabel}>{t.transcriptsAndMedia}</div>
+                  <div style={styles.storagePath}>{storageDir}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
+                <Button size="small" onClick={handleRevealStorage}>{t.revealInFileManager}</Button>
+                <Button size="small" onClick={handleChangeStorage}>{t.change}</Button>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.storageUsed}</div>
+                <div style={styles.rowValue}>{formatSize(storageSize)}</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
-              <Button size="small" onClick={handleRevealStorage}>{t.revealInFileManager}</Button>
-              <Button size="small" onClick={handleChangeStorage}>{t.change}</Button>
+
+            <div style={styles.subSectionHeader}>{t.backupSection}</div>
+            <div style={styles.card}>
+              <div style={styles.cardRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={styles.rowLabel}>{t.backupDirectory}</div>
+                  <div style={styles.storagePath}>{backupDir || t.backupDirectoryNotSet}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
+                <Button size="small" onClick={handleChangeBackupDir}>{t.backupChangeDirectory}</Button>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={{ display: 'flex', gap: 8, padding: '6px 0' }}>
+                <Button
+                  size="small"
+                  onClick={handleCreateBackup}
+                  disabled={!backupDir || backupStatus === 'backing-up' || backupStatus === 'restoring'}
+                >
+                  {t.createBackup}
+                </Button>
+                <Button
+                  size="small"
+                  onClick={handleRestoreBackup}
+                  disabled={backupStatus === 'backing-up' || backupStatus === 'restoring'}
+                >
+                  {t.restoreFromBackup}
+                </Button>
+              </div>
+              {(backupStatus === 'backing-up' || backupStatus === 'restoring') && (
+                <>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.rowDesc}>
+                    {fmt(backupStatus === 'backing-up' ? t.backupInProgress : t.restoreInProgress, { progress: String(backupProgress) })}
+                  </div>
+                  <div style={{
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: 'var(--color-border)',
+                    overflow: 'hidden',
+                    marginTop: 4,
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${backupProgress}%`,
+                      backgroundColor: 'var(--color-foreground)',
+                      borderRadius: 2,
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                </>
+              )}
+              {(backupStatus === 'done' || backupStatus === 'error') && (
+                <>
+                  <div style={styles.cardDivider} />
+                  <div style={{
+                    fontSize: 12,
+                    color: backupStatus === 'done' ? '#22c55e' : '#ef4444',
+                    padding: '6px 0',
+                    lineHeight: 1.5,
+                  }}>
+                    {backupMessage}
+                  </div>
+                </>
+              )}
             </div>
-            <div style={styles.cardDivider} />
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.storageUsed}</div>
-              <div style={styles.rowValue}>{formatSize(storageSize)}</div>
-            </div>
-          </div>
+          </>
         )
 
       case 'model':
