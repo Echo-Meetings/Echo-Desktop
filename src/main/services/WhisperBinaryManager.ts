@@ -9,6 +9,8 @@ const WHISPER_VERSION = '1.8.4'
 
 /** DLLs expected alongside whisper-cli.exe in the download package */
 const WHISPER_EXPECTED_DLLS = ['whisper.dll', 'ggml.dll', 'ggml-base.dll', 'ggml-cpu.dll']
+/** Optional GPU DLLs — present when built with Vulkan support */
+const WHISPER_GPU_DLLS = ['ggml-vulkan.dll']
 
 export interface DiagnosticResult {
   ok: boolean
@@ -22,6 +24,7 @@ export interface DiagnosticResult {
   whisperPath: string | null
   ffmpegPath: string | null
   whisperVersion: string
+  gpuBackend: 'vulkan' | 'metal' | 'none'
 }
 
 // FFmpeg release from BtbN — reliable, up-to-date, includes ffmpeg + ffprobe
@@ -41,9 +44,9 @@ function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz';
       }
     }
     return {
-      url: `https://github.com/ggml-org/whisper.cpp/releases/download/v${WHISPER_VERSION}/whisper-bin-x64.zip`,
+      url: `${echoRelease}/whisper-bin-x64-windows.zip`,
       archiveType: 'zip',
-      binariesInDir: 'Release'
+      binariesInDir: ''
     }
   }
 
@@ -102,6 +105,70 @@ export class WhisperBinaryManager {
     return true
   }
 
+  /**
+   * Check if the installed whisper binary needs upgrading to a GPU-enabled build.
+   * Returns true if the current binary is CPU-only and should be replaced.
+   */
+  needsGpuUpgrade(): boolean {
+    const whisperPath = locateWhisperCli()
+    if (!whisperPath) return false
+
+    const gpuMarkerPath = join(this.binDir, '.whisper-gpu')
+    try {
+      if (existsSync(gpuMarkerPath)) {
+        const marker = readFileSync(gpuMarkerPath, 'utf-8').trim()
+        return marker === 'cpu'
+      }
+    } catch { /* ok */ }
+    // No GPU marker = old CPU-only download, needs GPU upgrade
+    return true
+  }
+
+  /**
+   * Detect what GPU backend the installed whisper binary supports.
+   */
+  detectGpuSupport(): 'vulkan' | 'metal' | 'none' {
+    const whisperPath = locateWhisperCli()
+    if (!whisperPath) return 'none'
+
+    const whisperDir = dirname(whisperPath)
+
+    if (process.platform === 'darwin') {
+      // Metal: check for embedded library or shader file
+      if (existsSync(join(whisperDir, 'ggml-metal.metal')) ||
+          existsSync(join(whisperDir, 'ggml-metal.metallib'))) {
+        return 'metal'
+      }
+      // Metal can also be embedded in the binary via GGML_METAL_EMBED_LIBRARY
+      // In that case no external file is needed — check GPU marker
+      const gpuMarkerPath = join(this.binDir, '.whisper-gpu')
+      try {
+        if (existsSync(gpuMarkerPath)) {
+          const marker = readFileSync(gpuMarkerPath, 'utf-8').trim()
+          if (marker === 'metal') return 'metal'
+        }
+      } catch { /* ok */ }
+      return 'none'
+    }
+
+    if (process.platform === 'win32') {
+      // Vulkan: check for ggml-vulkan.dll
+      for (const dll of WHISPER_GPU_DLLS) {
+        if (existsSync(join(whisperDir, dll))) return 'vulkan'
+      }
+      return 'none'
+    }
+
+    if (process.platform === 'linux') {
+      // Vulkan: check for libggml-vulkan.so
+      const files = readdirSync(whisperDir)
+      if (files.some(f => f.includes('ggml-vulkan'))) return 'vulkan'
+      return 'none'
+    }
+
+    return 'none'
+  }
+
   getInstallInstructions(): string {
     if (process.platform === 'darwin') {
       return 'Install whisper-cli via Homebrew:\n  brew install whisper-cpp'
@@ -158,6 +225,10 @@ export class WhisperBinaryManager {
     // Write arch marker so we can detect wrong-arch binaries later
     const variant = process.arch === 'arm64' ? 'arm64' : 'x64'
     try { writeFileSync(join(this.binDir, '.whisper-arch'), variant) } catch { /* ok */ }
+
+    // Write GPU variant marker
+    const gpuVariant = process.platform === 'darwin' ? 'metal' : 'vulkan'
+    try { writeFileSync(join(this.binDir, '.whisper-gpu'), gpuVariant) } catch { /* ok */ }
 
     onProgress(1)
     return whisperPath
@@ -245,6 +316,8 @@ export class WhisperBinaryManager {
         existsSync(join(sys32, 'msvcp140.dll'))
     }
 
+    const gpuBackend = this.detectGpuSupport()
+
     const ok = !!whisperPath && whisperBinaryValid && missingDlls.length === 0 &&
       vcRuntimeInstalled && !!ffmpegPath
 
@@ -259,7 +332,8 @@ export class WhisperBinaryManager {
       platform: process.platform,
       whisperPath,
       ffmpegPath,
-      whisperVersion: WHISPER_VERSION
+      whisperVersion: WHISPER_VERSION,
+      gpuBackend
     }
   }
 
@@ -274,7 +348,7 @@ export class WhisperBinaryManager {
     try {
       const files = readdirSync(binDir)
       for (const f of files) {
-        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f === '.whisper-arch') {
+        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f === '.whisper-arch' || f === '.whisper-gpu' || f.endsWith('.metal') || f.endsWith('.metallib')) {
           try { unlinkSync(join(binDir, f)) } catch { /* ok */ }
         }
       }

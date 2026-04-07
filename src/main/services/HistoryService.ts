@@ -7,7 +7,7 @@ import { join, extname, basename } from 'path'
 import { app } from 'electron'
 import { randomUUID } from 'crypto'
 import type { TranscriptResult } from './TranscriptionService'
-import { isVideoFile, checkIsHevc, convertVideoForPlayback } from './FileImportService'
+import { isVideoFile, checkIsHevc, convertVideoForPlayback, remuxWithFastStart } from './FileImportService'
 
 export interface HistorySegment {
   id: string
@@ -110,23 +110,27 @@ export class HistoryService {
         // Non-critical — original file still accessible
       }
 
-      // Check if video uses HEVC codec and convert to H.264 in background
+      // Process video files in background for Chromium compatibility
       if (isVideoFile(sourceFilePath)) {
-        checkIsHevc(mediaDest).then((isHevc) => {
-          if (!isHevc) return
+        checkIsHevc(mediaDest).then(async (isHevc) => {
           const mp4Dest = join(this.mediaDir, `${id}.mp4`)
-          convertVideoForPlayback(mediaDest, mp4Dest)
-            .then(() => {
-              // Update entry to point to converted file
+          try {
+            if (isHevc) {
+              // HEVC → full H.264 re-encode
+              await convertVideoForPlayback(mediaDest, mp4Dest)
               entry.fileExtension = 'mp4'
-              const jsonPath = join(this.echoDir, `${id}.json`)
-              writeFileSync(jsonPath, JSON.stringify(entry, null, 2), 'utf-8')
-              // Remove original HEVC copy
+              writeFileSync(join(this.echoDir, `${id}.json`), JSON.stringify(entry, null, 2), 'utf-8')
               try { unlinkSync(mediaDest) } catch { /* ok */ }
-            })
-            .catch(() => {
-              // Conversion failed — keep original copy
-            })
+            } else {
+              // Non-HEVC → remux with faststart (fixes "demuxer seek failed")
+              const tempDest = mediaDest + '.tmp'
+              await remuxWithFastStart(mediaDest, tempDest)
+              try { unlinkSync(mediaDest) } catch { /* ok */ }
+              renameSync(tempDest, mediaDest)
+            }
+          } catch {
+            // Conversion/remux failed — keep original copy
+          }
         })
       }
     }

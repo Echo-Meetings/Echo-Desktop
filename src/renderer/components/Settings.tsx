@@ -24,9 +24,12 @@ interface SettingsProps {
   onClose: () => void
 }
 
+type SectionId = 'general' | 'storage' | 'model' | 'system' | 'about'
+
 export function Settings({ onClose }: SettingsProps) {
   const t = useT()
   const { languageOverride, setLanguageOverride, setHasCompletedOnboarding, uiLanguage, setUiLanguage } = useAppStore()
+  const [activeSection, setActiveSection] = useState<SectionId>('general')
   const [storageDir, setStorageDir] = useState('')
   const [storageSize, setStorageSize] = useState(0)
   const [privacyConsent, setPrivacyConsent] = useState(false)
@@ -47,6 +50,16 @@ export function Settings({ onClose }: SettingsProps) {
   const [hardwareInfo, setHardwareInfo] = useState<{
     cpuCores: number; totalMemoryMB: number; optimalThreads: number
   } | null>(null)
+  const [logContent, setLogContent] = useState<string | null>(null)
+  const [logLoading, setLogLoading] = useState(false)
+
+  const sections: Array<{ id: SectionId; label: string }> = [
+    { id: 'general', label: t.generalSection },
+    { id: 'storage', label: t.storageSection },
+    { id: 'model', label: t.modelPickerSection },
+    { id: 'system', label: t.systemSection },
+    { id: 'about', label: t.aboutSection },
+  ]
 
   useEffect(() => {
     window.electronAPI.update.getVersion().then(setAppVersion)
@@ -111,7 +124,6 @@ export function Settings({ onClose }: SettingsProps) {
 
   const handleSelectModel = async (modelId: string) => {
     if (!downloadedModels[modelId]) {
-      // Download first
       setDownloadingModelId(modelId)
       await window.electronAPI.model.downloadById(modelId)
       setDownloadingModelId(null)
@@ -128,7 +140,6 @@ export function Settings({ onClose }: SettingsProps) {
     await window.electronAPI.model.delete(modelId)
     const updated = await window.electronAPI.model.getDownloadedModels()
     setDownloadedModels(updated)
-    // If the active model was deleted, switch to a downloaded one
     if (modelId === activeModelId) {
       const fallback = availableModels.find((m) => updated[m.id] && m.id !== modelId)
       if (fallback) {
@@ -171,21 +182,13 @@ export function Settings({ onClose }: SettingsProps) {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
   }
 
-  return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.window} onClick={(e) => e.stopPropagation()}>
-        {/* Title bar */}
-        <div style={styles.titleBar}>
-          <button onClick={onClose} style={styles.closeButton} />
-          <span style={styles.titleText}>{t.settingsTitle}</span>
-        </div>
-
-        <div style={styles.content}>
-          {/* Section: Interface */}
-          <div style={styles.sectionHeader}>{t.interfaceSection}</div>
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'general':
+        return (
           <div style={styles.card}>
             <div style={styles.cardRow}>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={styles.rowLabel}>{t.language}</div>
                 <div style={styles.rowDesc}>{t.interfaceLanguageDesc}</div>
               </div>
@@ -196,32 +199,27 @@ export function Settings({ onClose }: SettingsProps) {
                   setUiLanguage(code as any)
                   window.electronAPI.settings.set('uiLanguage', code)
                 }}
-                style={{ minWidth: 140 }}
+                style={{ width: 200, flexShrink: 0 }}
               />
             </div>
-          </div>
-
-          {/* Section: Transcription */}
-          <div style={styles.sectionHeader}>{t.transcriptionSection}</div>
-          <div style={styles.card}>
+            <div style={styles.cardDivider} />
             <div style={styles.cardRow}>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={styles.rowLabel}>{t.language}</div>
-                <div style={styles.rowDesc}>
-                  {t.transcriptionLanguageDesc}
-                </div>
+                <div style={styles.rowDesc}>{t.transcriptionLanguageDesc}</div>
               </div>
               <ComboBox
                 options={SUPPORTED_LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
                 value={languageOverride}
                 onChange={handleLanguageChange}
-                style={{ minWidth: 160 }}
+                style={{ width: 200, flexShrink: 0 }}
               />
             </div>
           </div>
+        )
 
-          {/* Section: Storage */}
-          <div style={styles.sectionHeader}>{t.storageSection}</div>
+      case 'storage':
+        return (
           <div style={styles.card}>
             <div style={styles.cardRow}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -230,7 +228,7 @@ export function Settings({ onClose }: SettingsProps) {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
-              <Button size="small" onClick={handleRevealStorage}>{t.revealInFinder}</Button>
+              <Button size="small" onClick={handleRevealStorage}>{t.revealInFileManager}</Button>
               <Button size="small" onClick={handleChangeStorage}>{t.change}</Button>
             </div>
             <div style={styles.cardDivider} />
@@ -239,9 +237,10 @@ export function Settings({ onClose }: SettingsProps) {
               <div style={styles.rowValue}>{formatSize(storageSize)}</div>
             </div>
           </div>
+        )
 
-          {/* Section: AI Model */}
-          <div style={styles.sectionHeader}>{t.modelPickerSection}</div>
+      case 'model':
+        return (
           <div style={styles.card}>
             <div style={styles.rowDesc}>{t.modelPickerDesc}</div>
             <div style={styles.cardDivider} />
@@ -249,7 +248,7 @@ export function Settings({ onClose }: SettingsProps) {
               const isActive = model.id === activeModelId
               const isDownloaded = downloadedModels[model.id]
               const isDownloading = downloadingModelId === model.id
-              const modelLabel = (t as Record<string, string>)[model.labelKey] || model.id
+              const modelLabel = (t as unknown as Record<string, string>)[model.labelKey] || model.id
               return (
                 <div key={model.id}>
                   {idx > 0 && <div style={styles.cardDivider} />}
@@ -280,7 +279,7 @@ export function Settings({ onClose }: SettingsProps) {
                       </div>
                       <div style={{ display: 'flex', gap: 12, marginTop: 2, paddingLeft: 22, fontSize: 12, color: 'var(--color-secondary)' }}>
                         <span>{formatSize(model.sizeBytes)}</span>
-                        <span>{accuracyLabel(model.accuracy)}</span>
+                        <span>{t.modelAccuracyPrefix} {accuracyLabel(model.accuracy).toLowerCase()}</span>
                         <span>{model.speedMultiplier}x {t.modelSpeedLabel.toLowerCase()}</span>
                       </div>
                     </div>
@@ -308,182 +307,235 @@ export function Settings({ onClose }: SettingsProps) {
               )
             })}
           </div>
+        )
 
-          {/* Section: Hardware */}
-          {hardwareInfo && (
-            <>
-              <div style={styles.sectionHeader}>{t.hardwareSection}</div>
-              <div style={styles.card}>
-                <div style={styles.cardRow}>
-                  <div style={styles.rowLabel}>{t.cpuCores}</div>
-                  <div style={styles.rowValue}>{hardwareInfo.cpuCores}</div>
-                </div>
-                <div style={styles.cardDivider} />
-                <div style={styles.cardRow}>
-                  <div style={styles.rowLabel}>{t.totalMemory}</div>
-                  <div style={styles.rowValue}>{formatSize(hardwareInfo.totalMemoryMB * 1024 * 1024)}</div>
-                </div>
-                <div style={styles.cardDivider} />
-                <div style={styles.cardRow}>
-                  <div style={styles.rowLabel}>{t.threadsUsed}</div>
-                  <div style={styles.rowValue}>{hardwareInfo.optimalThreads}</div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Section: System Diagnostics */}
-          <div style={styles.sectionHeader}>{t.diagnosticsSection}</div>
-          <div style={styles.card}>
-            {/* whisper-cli */}
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.diagnosticsWhisper}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  fontSize: 13,
-                  color: diagnostics?.whisperInstalled ? '#22c55e' : '#ef4444',
-                }}>
-                  {diagnostics?.whisperInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
-                </span>
-                {diagnostics?.platform === 'win32' && (
-                  <Button size="small" onClick={handleReinstallWhisper} disabled={reinstalling}>
-                    {reinstalling ? t.diagnosticsReinstalling : t.diagnosticsReinstall}
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div style={styles.cardDivider} />
-
-            {/* ffmpeg */}
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.diagnosticsFfmpeg}</div>
-              <span style={{
-                fontSize: 13,
-                color: diagnostics?.ffmpegInstalled ? '#22c55e' : '#ef4444',
-              }}>
-                {diagnostics?.ffmpegInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
-              </span>
-            </div>
-
-            {/* Windows-only diagnostics */}
-            {diagnostics?.platform === 'win32' && (
+      case 'system':
+        return (
+          <>
+            {/* Hardware */}
+            {hardwareInfo && (
               <>
-                <div style={styles.cardDivider} />
-                {/* VC++ Runtime */}
-                <div style={styles.cardRow}>
-                  <div style={styles.rowLabel}>{t.diagnosticsVcRuntime}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      fontSize: 13,
-                      color: diagnostics.vcRuntimeInstalled ? '#22c55e' : '#ef4444',
-                    }}>
-                      {diagnostics.vcRuntimeInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
-                    </span>
-                    {!diagnostics.vcRuntimeInstalled && (
-                      <Button size="small" onClick={() => {
-                        window.electronAPI.update.openRelease('https://aka.ms/vs/17/release/vc_redist.x64.exe')
-                      }}>
-                        {t.diagnosticsDownloadVcRuntime} ↗
-                      </Button>
-                    )}
+                <div style={styles.subSectionHeader}>{t.hardwareSection}</div>
+                <div style={styles.card}>
+                  <div style={styles.cardRow}>
+                    <div style={styles.rowLabel}>{t.cpuCores}</div>
+                    <div style={styles.rowValue}>{hardwareInfo.cpuCores}</div>
                   </div>
-                </div>
-                <div style={styles.cardDivider} />
-
-                {/* DLLs */}
-                <div style={styles.cardRow}>
-                  <div style={styles.rowLabel}>{t.diagnosticsDlls}</div>
-                  <span style={{
-                    fontSize: 13,
-                    color: diagnostics.missingDlls.length === 0 ? '#22c55e' : '#ef4444',
-                  }}>
-                    {diagnostics.missingDlls.length === 0
-                      ? t.diagnosticsAllPresent
-                      : fmt(t.diagnosticsMissing, { dlls: diagnostics.missingDlls.join(', ') })}
-                  </span>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.cardRow}>
+                    <div style={styles.rowLabel}>{t.totalMemory}</div>
+                    <div style={styles.rowValue}>{formatSize(hardwareInfo.totalMemoryMB * 1024 * 1024)}</div>
+                  </div>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.cardRow}>
+                    <div style={styles.rowLabel}>{t.threadsUsed}</div>
+                    <div style={styles.rowValue}>{hardwareInfo.optimalThreads}</div>
+                  </div>
                 </div>
               </>
             )}
 
-            <div style={styles.cardDivider} />
-            {/* Architecture */}
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.diagnosticsArchitecture}</div>
-              <div style={styles.rowValue}>{diagnostics?.arch || '—'}</div>
+            {/* Diagnostics */}
+            <div style={styles.subSectionHeader}>{t.diagnosticsSection}</div>
+            <div style={styles.card}>
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.diagnosticsWhisper}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontSize: 13,
+                    color: diagnostics?.whisperInstalled ? '#22c55e' : '#ef4444',
+                  }}>
+                    {diagnostics?.whisperInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
+                  </span>
+                  {diagnostics?.platform === 'win32' && (
+                    <Button size="small" onClick={handleReinstallWhisper} disabled={reinstalling}>
+                      {reinstalling ? t.diagnosticsReinstalling : t.diagnosticsReinstall}
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.diagnosticsFfmpeg}</div>
+                <span style={{
+                  fontSize: 13,
+                  color: diagnostics?.ffmpegInstalled ? '#22c55e' : '#ef4444',
+                }}>
+                  {diagnostics?.ffmpegInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
+                </span>
+              </div>
+              {diagnostics?.platform === 'win32' && (
+                <>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.cardRow}>
+                    <div style={styles.rowLabel}>{t.diagnosticsVcRuntime}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        fontSize: 13,
+                        color: diagnostics.vcRuntimeInstalled ? '#22c55e' : '#ef4444',
+                      }}>
+                        {diagnostics.vcRuntimeInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
+                      </span>
+                      {!diagnostics.vcRuntimeInstalled && (
+                        <Button size="small" onClick={() => {
+                          window.electronAPI.update.openRelease('https://aka.ms/vs/17/release/vc_redist.x64.exe')
+                        }}>
+                          {t.diagnosticsDownloadVcRuntime} ↗
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.cardRow}>
+                    <div style={styles.rowLabel}>{t.diagnosticsDlls}</div>
+                    <span style={{
+                      fontSize: 13,
+                      color: diagnostics.missingDlls.length === 0 ? '#22c55e' : '#ef4444',
+                    }}>
+                      {diagnostics.missingDlls.length === 0
+                        ? t.diagnosticsAllPresent
+                        : fmt(t.diagnosticsMissing, { dlls: diagnostics.missingDlls.join(', ') })}
+                    </span>
+                  </div>
+                </>
+              )}
+              <div style={styles.cardDivider} />
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.diagnosticsArchitecture}</div>
+                <div style={styles.rowValue}>{diagnostics?.arch || '—'}</div>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.diagnosticsWhisperVersion}</div>
+                <div style={styles.rowValue}>{diagnostics?.whisperVersion || '—'}</div>
+              </div>
             </div>
-            <div style={styles.cardDivider} />
-            {/* Whisper version */}
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.diagnosticsWhisperVersion}</div>
-              <div style={styles.rowValue}>{diagnostics?.whisperVersion || '—'}</div>
+
+            {/* Logs */}
+            <div style={styles.subSectionHeader}>{t.logsSection}</div>
+            <div style={styles.card}>
+              <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
+                <Button size="small" onClick={async () => {
+                  setLogLoading(true)
+                  const content = await window.electronAPI.logs.readFile()
+                  setLogContent(logContent === null ? content : null)
+                  setLogLoading(false)
+                }}>
+                  {logLoading ? '...' : logContent === null ? t.logsShow : t.logsHide}
+                </Button>
+                <Button size="small" onClick={() => window.electronAPI.logs.reveal()}>
+                  {t.logsOpenFile}
+                </Button>
+              </div>
+              {logContent !== null && (
+                <pre style={styles.logViewer}>{logContent || t.logsEmpty}</pre>
+              )}
             </div>
+          </>
+        )
+
+      case 'about':
+        return (
+          <>
+            <div style={styles.card}>
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.version}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={styles.rowValue}>{appVersion}</div>
+                  {updateStatus === 'idle' && (
+                    <Button size="small" onClick={handleCheckUpdate}>{t.checkForUpdates}</Button>
+                  )}
+                  {updateStatus === 'checking' && (
+                    <span style={{ fontSize: 12, color: 'var(--color-secondary)' }}>{t.checking}</span>
+                  )}
+                  {updateStatus === 'available' && (
+                    <Button size="small" onClick={() => window.electronAPI.update.openRelease(updateInfo.releaseUrl!)}>
+                      {fmt(t.updateAvailable, { version: updateInfo.latestVersion! })} — {t.download}
+                    </Button>
+                  )}
+                  {updateStatus === 'latest' && (
+                    <span style={{ fontSize: 12, color: '#22c55e' }}>{t.updateNotAvailable}</span>
+                  )}
+                  {updateStatus === 'error' && (
+                    <span style={{ fontSize: 12, color: '#ef4444' }}>{t.updateError}</span>
+                  )}
+                </div>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.thirdPartySoftware}</div>
+                <div style={{
+                  fontSize: 12,
+                  color: 'var(--color-secondary)',
+                  textAlign: 'right' as const,
+                  lineHeight: 1.6,
+                }}>
+                  <div>{t.whisperCredit}</div>
+                  <div>{t.ffmpegCredit}</div>
+                </div>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={{ padding: '4px 0' }}>
+                <Button size="small" onClick={handleShowOnboarding}>{t.showOnboarding}</Button>
+              </div>
+            </div>
+
+            {/* Privacy */}
+            <div style={styles.subSectionHeader}>{t.privacySection}</div>
+            <div style={styles.card}>
+              <div style={styles.rowDesc}>{t.privacyDesc}</div>
+              <div style={styles.cardDivider} />
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.privacyConsent}</div>
+                <div style={{
+                  ...styles.rowValue,
+                  color: privacyConsent ? '#22c55e' : 'var(--color-secondary)',
+                }}>
+                  {privacyConsent ? t.accepted : t.notAccepted}
+                </div>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={{ padding: '4px 0' }}>
+                <Button size="small" onClick={handleViewPrivacy}>{t.viewPrivacyPolicy}</Button>
+              </div>
+            </div>
+          </>
+        )
+    }
+  }
+
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div style={styles.window} onClick={(e) => e.stopPropagation()}>
+        {/* Title bar */}
+        <div style={styles.titleBar}>
+          <span style={styles.titleText}>{t.settingsTitle}</span>
+          <button onClick={onClose} style={styles.closeButton}>✕</button>
+        </div>
+
+        <div style={styles.body}>
+          {/* Sidebar */}
+          <div style={styles.sidebar}>
+            {sections.map((s) => (
+              <div
+                key={s.id}
+                style={{
+                  ...styles.sidebarItem,
+                  ...(activeSection === s.id ? styles.sidebarItemActive : {}),
+                }}
+                onClick={() => setActiveSection(s.id)}
+              >
+                {s.label}
+              </div>
+            ))}
           </div>
 
-          {/* Section: Privacy & Legal */}
-          <div style={styles.sectionHeader}>{t.privacySection}</div>
-          <div style={styles.card}>
-            <div style={styles.rowDesc}>
-              {t.privacyDesc}
+          {/* Content */}
+          <div style={styles.content}>
+            <div style={styles.sectionHeader}>
+              {sections.find((s) => s.id === activeSection)?.label}
             </div>
-            <div style={styles.cardDivider} />
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.privacyConsent}</div>
-              <div style={{
-                ...styles.rowValue,
-                color: privacyConsent ? '#22c55e' : 'var(--color-secondary)',
-              }}>
-                {privacyConsent ? t.accepted : t.notAccepted}
-              </div>
-            </div>
-            <div style={styles.cardDivider} />
-            <div style={{ padding: '4px 0' }}>
-              <Button size="small" onClick={handleViewPrivacy}>{t.viewPrivacyPolicy}</Button>
-            </div>
-          </div>
-
-          {/* Section: About */}
-          <div style={styles.sectionHeader}>{t.aboutSection}</div>
-          <div style={styles.card}>
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.version}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={styles.rowValue}>{appVersion}</div>
-                {updateStatus === 'idle' && (
-                  <Button size="small" onClick={handleCheckUpdate}>{t.checkForUpdates}</Button>
-                )}
-                {updateStatus === 'checking' && (
-                  <span style={{ fontSize: 12, color: 'var(--color-secondary)' }}>{t.checking}</span>
-                )}
-                {updateStatus === 'available' && (
-                  <Button size="small" onClick={() => window.electronAPI.update.openRelease(updateInfo.releaseUrl!)}>
-                    {fmt(t.updateAvailable, { version: updateInfo.latestVersion! })} — {t.download}
-                  </Button>
-                )}
-                {updateStatus === 'latest' && (
-                  <span style={{ fontSize: 12, color: '#22c55e' }}>{t.updateNotAvailable}</span>
-                )}
-                {updateStatus === 'error' && (
-                  <span style={{ fontSize: 12, color: '#ef4444' }}>{t.updateError}</span>
-                )}
-              </div>
-            </div>
-            <div style={styles.cardDivider} />
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.thirdPartySoftware}</div>
-              <div style={{
-                fontSize: 12,
-                color: 'var(--color-secondary)',
-                textAlign: 'right' as const,
-                lineHeight: 1.6,
-              }}>
-                <div>{t.whisperCredit}</div>
-                <div>{t.ffmpegCredit}</div>
-              </div>
-            </div>
-            <div style={styles.cardDivider} />
-            <div style={{ padding: '4px 0' }}>
-              <Button size="small" onClick={handleShowOnboarding}>{t.showOnboarding}</Button>
-            </div>
+            {renderSection()}
           </div>
         </div>
       </div>
@@ -503,7 +555,8 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 300,
   },
   window: {
-    width: 560,
+    width: 720,
+    minHeight: 520,
     maxHeight: 'calc(100vh - 120px)',
     backgroundColor: 'var(--color-background)',
     borderRadius: 10,
@@ -521,28 +574,66 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   closeButton: {
-    width: 12,
-    height: 12,
-    borderRadius: '50%',
-    backgroundColor: '#ff5f57',
+    width: 24,
+    height: 24,
+    borderRadius: 'var(--radius-sm)',
+    backgroundColor: 'transparent',
     border: 'none',
     cursor: 'pointer',
     flexShrink: 0,
+    fontSize: 14,
+    color: 'var(--color-secondary)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   titleText: {
     fontSize: 'var(--font-body)',
     fontWeight: 600,
     flex: 1,
     textAlign: 'center',
-    marginRight: 22,
+    marginLeft: 24,
+  },
+  body: {
+    display: 'flex',
+    flex: 1,
+    overflow: 'hidden',
+  },
+  sidebar: {
+    width: 170,
+    flexShrink: 0,
+    borderRight: '1px solid var(--color-border)',
+    padding: '12px 0',
+    overflowY: 'auto',
+  },
+  sidebarItem: {
+    padding: '10px 20px',
+    fontSize: 13,
+    cursor: 'pointer',
+    color: 'var(--color-secondary)',
+    borderRadius: 0,
+    transition: 'background-color 0.1s, color 0.1s',
+  },
+  sidebarItemActive: {
+    color: 'var(--color-foreground)',
+    fontWeight: 600,
+    backgroundColor: 'var(--color-highlight)',
   },
   content: {
     padding: 16,
     overflowY: 'auto',
     flex: 1,
+    minWidth: 0,
   },
   sectionHeader: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'var(--color-foreground)',
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  subSectionHeader: {
+    fontSize: 11,
     fontWeight: 600,
     color: 'var(--color-secondary)',
     marginTop: 16,
@@ -590,5 +681,19 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'SF Mono', 'Menlo', monospace",
     marginTop: 2,
     wordBreak: 'break-all',
+  },
+  logViewer: {
+    maxHeight: 300,
+    overflow: 'auto',
+    backgroundColor: 'var(--color-surface)',
+    borderRadius: 'var(--radius-sm)',
+    padding: 12,
+    fontSize: 11,
+    fontFamily: "ui-monospace, 'SF Mono', 'Menlo', monospace",
+    color: 'var(--color-secondary)',
+    lineHeight: 1.6,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-all',
+    margin: '8px 0 0',
   },
 }

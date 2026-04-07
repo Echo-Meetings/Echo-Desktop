@@ -3,6 +3,7 @@ import { useAppStore } from '@/stores/appStore'
 import { formatTimestamp } from '@/types/models'
 import type { QueueSession } from '@/types/models'
 import { useT, fmt } from '@/i18n'
+import { EchoLogo } from './EchoLogo'
 
 interface ProcessingViewProps {
   session: QueueSession
@@ -59,7 +60,7 @@ export function ProcessingView({ session }: ProcessingViewProps) {
       <div style={styles.leftPanel}>
         <div style={styles.thumbnailPlaceholder}>
           <div style={styles.thumbnailIcon}>
-            {isQueued ? '⏳' : '〰'}
+            {isQueued ? '⏳' : <EchoLogo size={40} />}
           </div>
         </div>
 

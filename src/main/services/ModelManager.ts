@@ -22,39 +22,6 @@ const HF_BASE = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main'
 
 export const MODEL_REGISTRY: ModelDefinition[] = [
   {
-    id: 'tiny',
-    filename: 'ggml-tiny.bin',
-    url: `${HF_BASE}/ggml-tiny.bin`,
-    sizeBytes: 75_000_000,
-    ramRequiredMB: 400,
-    labelKey: 'modelTiny',
-    accuracy: 'low',
-    speedMultiplier: 10,
-    multilingual: true
-  },
-  {
-    id: 'base',
-    filename: 'ggml-base.bin',
-    url: `${HF_BASE}/ggml-base.bin`,
-    sizeBytes: 142_000_000,
-    ramRequiredMB: 500,
-    labelKey: 'modelBase',
-    accuracy: 'medium-low',
-    speedMultiplier: 7,
-    multilingual: true
-  },
-  {
-    id: 'small',
-    filename: 'ggml-small.bin',
-    url: `${HF_BASE}/ggml-small.bin`,
-    sizeBytes: 466_000_000,
-    ramRequiredMB: 1000,
-    labelKey: 'modelSmall',
-    accuracy: 'medium',
-    speedMultiplier: 4,
-    multilingual: true
-  },
-  {
     id: 'medium',
     filename: 'ggml-medium.bin',
     url: `${HF_BASE}/ggml-medium.bin`,

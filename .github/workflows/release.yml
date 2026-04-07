@@ -61,7 +61,43 @@ jobs:
           path: release/*.zip
           if-no-files-found: error
 
-  # Cross-compile whisper.cpp for ARM64 Windows using Clang (MSVC not supported for ARM)
+  # Build whisper.cpp for x64 Windows with Vulkan GPU acceleration
+  build-whisper-x64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: v1.8.4
+
+      - name: Install Vulkan SDK
+        uses: humbletim/setup-vulkan-sdk@v1.2.0
+        with:
+          vulkan-query-version: 1.3.290.0
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
+
+      - name: Build with Vulkan
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_VULKAN=ON -DGGML_NATIVE=OFF
+          cmake --build build --config Release --target whisper-cli
+
+      - name: Package binaries
+        run: |
+          New-Item -ItemType Directory -Path package -Force
+          Copy-Item build\bin\Release\whisper-cli.exe package\
+          Get-ChildItem build\bin\Release\*.dll | Copy-Item -Destination package\
+          Compress-Archive -Path package\* -DestinationPath whisper-bin-x64-windows.zip
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-x64
+          path: whisper-bin-x64-windows.zip
+
+  # Cross-compile whisper.cpp for ARM64 Windows with Vulkan GPU acceleration
   build-whisper-arm64:
     runs-on: windows-latest
     steps:
@@ -71,9 +107,16 @@ jobs:
           repository: ggml-org/whisper.cpp
           ref: v1.8.4
 
-      - name: Cross-compile for ARM64 with Clang
+      - name: Install Vulkan SDK
+        uses: humbletim/setup-vulkan-sdk@v1.2.0
+        with:
+          vulkan-query-version: 1.3.290.0
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true
+
+      - name: Cross-compile for ARM64 with Clang and Vulkan
         run: |
-          cmake -B build -T ClangCL -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_OPENMP=OFF -DGGML_NATIVE=OFF
+          cmake -B build -T ClangCL -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_OPENMP=OFF -DGGML_NATIVE=OFF -DGGML_VULKAN=ON
           cmake --build build --config Release --target whisper-cli
 
       - name: Package binaries
@@ -100,19 +143,21 @@ jobs:
           repository: ggml-org/whisper.cpp
           ref: v1.8.4
 
-      - name: Build universal binary
+      - name: Build universal binary with Metal GPU acceleration
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
             -DGGML_NATIVE=OFF \
-            -DGGML_METAL=OFF \
+            -DGGML_METAL=ON \
+            -DGGML_METAL_EMBED_LIBRARY=ON \
             -DGGML_OPENMP=OFF
           cmake --build build --config Release --target whisper-cli
 
       - name: Sign and package
         run: |
           codesign --force --sign - build/bin/whisper-cli
-          tar czf whisper-bin-universal-macos.tar.gz -C build/bin whisper-cli
+          # Include Metal shader files alongside binary if present
+          cd build/bin && tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli ggml-metal.metal 2>/dev/null || tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -130,16 +175,26 @@ jobs:
           repository: ggml-org/whisper.cpp
           ref: v1.8.4
 
-      - name: Build static binary
+      - name: Install Vulkan SDK
+        run: |
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt-get update
+          sudo apt-get install -y vulkan-sdk
+
+      - name: Build with Vulkan GPU acceleration
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
             -DGGML_NATIVE=OFF \
             -DGGML_OPENMP=OFF \
-            -DBUILD_SHARED_LIBS=OFF
+            -DGGML_VULKAN=ON \
+            -DBUILD_SHARED_LIBS=ON
           cmake --build build --config Release --target whisper-cli
 
       - name: Package
-        run: tar czf whisper-bin-x64-linux.tar.gz -C build/bin whisper-cli
+        run: |
+          cd build/bin
+          tar czf ../../whisper-bin-x64-linux.tar.gz whisper-cli lib*.so* 2>/dev/null || tar czf ../../whisper-bin-x64-linux.tar.gz whisper-cli
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -176,7 +231,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [build-mac, build-windows, build-whisper-arm64, build-whisper-macos, build-whisper-linux, build-linux]
+    needs: [build-mac, build-windows, build-whisper-x64, build-whisper-arm64, build-whisper-macos, build-whisper-linux, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

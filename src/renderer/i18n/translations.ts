@@ -109,6 +109,8 @@ export interface Translations {
 
   // Settings
   settingsTitle: string
+  generalSection: string
+  systemSection: string
   interfaceSection: string
   language: string
   interfaceLanguageDesc: string
@@ -116,7 +118,7 @@ export interface Translations {
   transcriptionLanguageDesc: string
   storageSection: string
   transcriptsAndMedia: string
-  revealInFinder: string
+  revealInFileManager: string
   change: string
   storageUsed: string
   privacySection: string
@@ -125,6 +127,11 @@ export interface Translations {
   accepted: string
   notAccepted: string
   viewPrivacyPolicy: string
+  logsSection: string
+  logsShow: string
+  logsHide: string
+  logsOpenFile: string
+  logsEmpty: string
   aboutSection: string
   version: string
   thirdPartySoftware: string
@@ -193,6 +200,7 @@ export interface Translations {
   // Model picker
   modelPickerSection: string
   modelPickerDesc: string
+  modelAccuracyPrefix: string
   modelAccuracyLow: string
   modelAccuracyMediumLow: string
   modelAccuracyMedium: string
@@ -309,14 +317,16 @@ export const translations: Record<UILocale, Translations> = {
     next: 'Next',
     getStarted: 'Get Started',
     settingsTitle: 'Echo Settings',
+    generalSection: 'General',
+    systemSection: 'System',
     interfaceSection: 'INTERFACE',
     language: 'Language',
     interfaceLanguageDesc: 'Interface display language',
     transcriptionSection: 'TRANSCRIPTION',
     transcriptionLanguageDesc: 'When set to Auto-detect, Echo will automatically identify the spoken language.',
-    storageSection: 'STORAGE',
+    storageSection: 'Storage',
     transcriptsAndMedia: 'Transcripts & media',
-    revealInFinder: 'Reveal in Finder',
+    revealInFileManager: 'Show in File Manager',
     change: 'Change...',
     storageUsed: 'Storage used',
     privacySection: 'PRIVACY & LEGAL',
@@ -325,7 +335,12 @@ export const translations: Record<UILocale, Translations> = {
     accepted: 'Accepted',
     notAccepted: 'Not accepted',
     viewPrivacyPolicy: 'View Privacy Policy',
-    aboutSection: 'ABOUT',
+    logsSection: 'LOGS',
+    logsShow: 'Show Logs',
+    logsHide: 'Hide Logs',
+    logsOpenFile: 'Open Log File',
+    logsEmpty: 'No logs yet',
+    aboutSection: 'About',
     version: 'Version',
     thirdPartySoftware: 'Third-party software',
     whisperCredit: 'whisper.cpp (MIT) — Speech recognition',
@@ -383,6 +398,7 @@ export const translations: Record<UILocale, Translations> = {
     remaining: 'remaining',
     modelPickerSection: 'AI Model',
     modelPickerDesc: 'Smaller models are faster but less accurate. Larger models produce better results but need more RAM and processing power.',
+    modelAccuracyPrefix: 'Accuracy:',
     modelAccuracyLow: 'Low',
     modelAccuracyMediumLow: 'Medium-Low',
     modelAccuracyMedium: 'Medium',
@@ -494,14 +510,16 @@ export const translations: Record<UILocale, Translations> = {
     next: 'Далее',
     getStarted: 'Начать',
     settingsTitle: 'Настройки Echo',
+    generalSection: 'Основные',
+    systemSection: 'Система',
     interfaceSection: 'ИНТЕРФЕЙС',
     language: 'Язык',
     interfaceLanguageDesc: 'Язык отображения интерфейса',
     transcriptionSection: 'ТРАНСКРИПЦИЯ',
     transcriptionLanguageDesc: 'При автоопределении Echo автоматически определит язык речи.',
-    storageSection: 'ХРАНИЛИЩЕ',
+    storageSection: 'Хранилище',
     transcriptsAndMedia: 'Транскрипции и медиа',
-    revealInFinder: 'Показать в Finder',
+    revealInFileManager: 'Показать в файловом менеджере',
     change: 'Изменить...',
     storageUsed: 'Использовано',
     privacySection: 'КОНФИДЕНЦИАЛЬНОСТЬ',
@@ -510,7 +528,12 @@ export const translations: Record<UILocale, Translations> = {
     accepted: 'Принято',
     notAccepted: 'Не принято',
     viewPrivacyPolicy: 'Политика конфиденциальности',
-    aboutSection: 'О ПРИЛОЖЕНИИ',
+    logsSection: 'ЛОГИ',
+    logsShow: 'Показать логи',
+    logsHide: 'Скрыть логи',
+    logsOpenFile: 'Открыть файл логов',
+    logsEmpty: 'Логов пока нет',
+    aboutSection: 'О приложении',
     version: 'Версия',
     thirdPartySoftware: 'Стороннее ПО',
     whisperCredit: 'whisper.cpp (MIT) — Распознавание речи',
@@ -568,6 +591,7 @@ export const translations: Record<UILocale, Translations> = {
     remaining: 'осталось',
     modelPickerSection: 'ИИ-модель',
     modelPickerDesc: 'Модели меньшего размера быстрее, но менее точны. Большие модели дают лучшие результаты, но требуют больше памяти и вычислительных ресурсов.',
+    modelAccuracyPrefix: 'Точность:',
     modelAccuracyLow: 'Низкая',
     modelAccuracyMediumLow: 'Ниже средней',
     modelAccuracyMedium: 'Средняя',
@@ -679,14 +703,16 @@ export const translations: Record<UILocale, Translations> = {
     next: 'Weiter',
     getStarted: 'Loslegen',
     settingsTitle: 'Echo Einstellungen',
+    generalSection: 'Allgemein',
+    systemSection: 'System',
     interfaceSection: 'OBERFLÄCHE',
     language: 'Sprache',
     interfaceLanguageDesc: 'Anzeigesprache der Benutzeroberfläche',
     transcriptionSection: 'TRANSKRIPTION',
     transcriptionLanguageDesc: 'Bei automatischer Erkennung identifiziert Echo die gesprochene Sprache automatisch.',
-    storageSection: 'SPEICHER',
+    storageSection: 'Speicher',
     transcriptsAndMedia: 'Transkripte & Medien',
-    revealInFinder: 'Im Finder anzeigen',
+    revealInFileManager: 'Im Dateimanager anzeigen',
     change: 'Ändern...',
     storageUsed: 'Speicher belegt',
     privacySection: 'DATENSCHUTZ & RECHT',
@@ -695,7 +721,12 @@ export const translations: Record<UILocale, Translations> = {
     accepted: 'Akzeptiert',
     notAccepted: 'Nicht akzeptiert',
     viewPrivacyPolicy: 'Datenschutzerklärung anzeigen',
-    aboutSection: 'ÜBER',
+    logsSection: 'PROTOKOLLE',
+    logsShow: 'Protokolle anzeigen',
+    logsHide: 'Protokolle ausblenden',
+    logsOpenFile: 'Protokolldatei öffnen',
+    logsEmpty: 'Noch keine Protokolle',
+    aboutSection: 'Über',
     version: 'Version',
     thirdPartySoftware: 'Drittanbieter-Software',
     whisperCredit: 'whisper.cpp (MIT) — Spracherkennung',
@@ -753,6 +784,7 @@ export const translations: Record<UILocale, Translations> = {
     remaining: 'verbleibend',
     modelPickerSection: 'KI-Modell',
     modelPickerDesc: 'Kleinere Modelle sind schneller, aber weniger genau. Größere Modelle liefern bessere Ergebnisse, benötigen aber mehr RAM und Rechenleistung.',
+    modelAccuracyPrefix: 'Genauigkeit:',
     modelAccuracyLow: 'Niedrig',
     modelAccuracyMediumLow: 'Mittel-Niedrig',
     modelAccuracyMedium: 'Mittel',
@@ -864,14 +896,16 @@ export const translations: Record<UILocale, Translations> = {
     next: 'Suivant',
     getStarted: 'Commencer',
     settingsTitle: "Paramètres d'Echo",
+    generalSection: 'Général',
+    systemSection: 'Système',
     interfaceSection: 'INTERFACE',
     language: 'Langue',
     interfaceLanguageDesc: "Langue d'affichage de l'interface",
     transcriptionSection: 'TRANSCRIPTION',
     transcriptionLanguageDesc: "En mode auto-détection, Echo identifiera automatiquement la langue parlée.",
-    storageSection: 'STOCKAGE',
+    storageSection: 'Stockage',
     transcriptsAndMedia: 'Transcriptions & médias',
-    revealInFinder: 'Afficher dans le Finder',
+    revealInFileManager: 'Ouvrir dans le gestionnaire de fichiers',
     change: 'Modifier...',
     storageUsed: 'Espace utilisé',
     privacySection: 'CONFIDENTIALITÉ & JURIDIQUE',
@@ -880,7 +914,12 @@ export const translations: Record<UILocale, Translations> = {
     accepted: 'Accepté',
     notAccepted: 'Non accepté',
     viewPrivacyPolicy: 'Voir la politique de confidentialité',
-    aboutSection: 'À PROPOS',
+    logsSection: 'JOURNAUX',
+    logsShow: 'Afficher les journaux',
+    logsHide: 'Masquer les journaux',
+    logsOpenFile: 'Ouvrir le fichier journal',
+    logsEmpty: 'Pas encore de journaux',
+    aboutSection: 'À propos',
     version: 'Version',
     thirdPartySoftware: 'Logiciels tiers',
     whisperCredit: 'whisper.cpp (MIT) — Reconnaissance vocale',
@@ -938,6 +977,7 @@ export const translations: Record<UILocale, Translations> = {
     remaining: 'restant',
     modelPickerSection: 'Modèle IA',
     modelPickerDesc: 'Les modèles plus petits sont plus rapides mais moins précis. Les modèles plus grands produisent de meilleurs résultats mais nécessitent plus de RAM et de puissance de calcul.',
+    modelAccuracyPrefix: 'Précision :',
     modelAccuracyLow: 'Faible',
     modelAccuracyMediumLow: 'Moyen-Faible',
     modelAccuracyMedium: 'Moyen',

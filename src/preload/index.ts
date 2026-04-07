@@ -153,10 +153,19 @@ const electronAPI = {
       ipcRenderer.invoke('app:setActiveSessions', active)
   },
 
+  // Logs
+  logs: {
+    getRecent: (): Promise<Array<{ timestamp: string; level: string; tag: string; message: string }>> =>
+      ipcRenderer.invoke('logs:getRecent'),
+    readFile: (): Promise<string> => ipcRenderer.invoke('logs:readFile'),
+    reveal: (): Promise<void> => ipcRenderer.invoke('logs:reveal')
+  },
+
   // Platform info
   platform: {
     get: (): string => process.platform,
-    getTheme: (): Promise<string> => ipcRenderer.invoke('platform:getTheme')
+    getTheme: (): Promise<string> => ipcRenderer.invoke('platform:getTheme'),
+    getUsername: (): Promise<string | null> => ipcRenderer.invoke('platform:getUsername')
   },
 
   // Event listeners (for streaming data from main process)

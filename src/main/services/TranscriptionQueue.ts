@@ -1,13 +1,13 @@
 import { BrowserWindow } from 'electron'
 import { existsSync } from 'fs'
 import { pathToFileURL } from 'url'
-import { TranscriptionService } from './TranscriptionService'
+import { TranscriptionService, PerformanceConfig } from './TranscriptionService'
 import { ModelManager } from './ModelManager'
 import { WhisperBinaryManager } from './WhisperBinaryManager'
 import * as FileImportService from './FileImportService'
 import { HistoryService } from './HistoryService'
 import { locateWhisperCli, locateFFmpeg } from './BinaryPaths'
-import { getFreeMemoryMB } from './HardwareDetection'
+import { getFreeMemoryMB, getHardwareInfo } from './HardwareDetection'
 
 interface QueueItem {
   sessionId: string
@@ -22,11 +22,22 @@ export class TranscriptionQueue {
   private modelManager: ModelManager
   private whisperBinaryManager: WhisperBinaryManager
   private historyService: HistoryService
+  private getPerformanceConfig: () => PerformanceConfig
 
-  constructor(modelManager: ModelManager, whisperBinaryManager: WhisperBinaryManager, historyService: HistoryService) {
+  constructor(
+    modelManager: ModelManager,
+    whisperBinaryManager: WhisperBinaryManager,
+    historyService: HistoryService,
+    getPerformanceConfig?: () => PerformanceConfig
+  ) {
     this.modelManager = modelManager
     this.whisperBinaryManager = whisperBinaryManager
     this.historyService = historyService
+    this.getPerformanceConfig = getPerformanceConfig || (() => ({
+      accelerationMode: 'gpu' as const,
+      flashAttention: true,
+      threadCount: 'auto' as const
+    }))
   }
 
   private getWindow(): BrowserWindow | null {
@@ -35,7 +46,10 @@ export class TranscriptionQueue {
   }
 
   private send(channel: string, ...args: unknown[]): void {
-    this.getWindow()?.webContents.send(channel, ...args)
+    const win = this.getWindow()
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(channel, ...args)
+    }
   }
 
   enqueue(items: Array<{ sessionId: string; filePath: string; language: string | null }>): void {
@@ -102,17 +116,21 @@ export class TranscriptionQueue {
         }
       }
 
-      // Ensure whisper-cli (and correct architecture)
+      // Ensure whisper-cli (correct architecture and GPU support)
       const needsArchFix = this.whisperBinaryManager.needsArchFix()
+      const needsGpuUpgrade = this.whisperBinaryManager.needsGpuUpgrade()
       if (needsArchFix) {
         console.log('[queue] Wrong whisper-cli architecture detected, downloading native build')
       }
-      if (!locateWhisperCli() || needsArchFix) {
+      if (needsGpuUpgrade) {
+        console.log('[queue] CPU-only whisper-cli detected, upgrading to GPU-enabled build')
+      }
+      if (!locateWhisperCli() || needsArchFix || needsGpuUpgrade) {
         if (this.whisperBinaryManager.canAutoDownload()) {
           this.send('queue:sessionProgress', sessionId, -1, null)
           await this.whisperBinaryManager.download((fraction) => {
             this.send('deps:whisperDownloadProgress', fraction)
-          }, needsArchFix)
+          }, needsArchFix || needsGpuUpgrade)
         } else {
           throw new Error(this.whisperBinaryManager.getInstallInstructions())
         }
@@ -154,6 +172,13 @@ export class TranscriptionQueue {
               ? `Cannot access the file. Check permissions.`
               : `Could not process the file.`)
       }
+
+      // Configure performance settings before transcription
+      const perfConfig = this.getPerformanceConfig()
+      this.transcriptionService.setPerformanceConfig(perfConfig)
+      const gpuBinarySupport = this.whisperBinaryManager.detectGpuSupport()
+      const hwGpu = getHardwareInfo().gpu
+      this.transcriptionService.setGpuSupported(hwGpu.available && gpuBinarySupport !== 'none')
 
       // Transcribe
       const result = await this.transcriptionService.transcribe(

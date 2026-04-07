@@ -36,6 +36,17 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
+  // Prevent Electron from navigating when files are dragged over the window
+  useEffect(() => {
+    const preventNav = (e: DragEvent) => e.preventDefault()
+    document.addEventListener('dragover', preventNav)
+    document.addEventListener('drop', preventNav)
+    return () => {
+      document.removeEventListener('dragover', preventNav)
+      document.removeEventListener('drop', preventNav)
+    }
+  }, [])
+
   // Load settings and history on mount — all IPC calls in parallel
   useEffect(() => {
     async function loadSettings() {

@@ -220,6 +220,31 @@ export async function convertVideoForPlayback(inputPath: string, outputPath: str
   })
 }
 
+/**
+ * Remux a video with faststart (moov atom at beginning) without re-encoding.
+ * This fixes "demuxer seek failed" errors in Chromium for files with moov at end.
+ */
+export async function remuxWithFastStart(inputPath: string, outputPath: string): Promise<void> {
+  const ffmpegPath = locateFFmpeg()
+  if (!ffmpegPath) throw new Error('ffmpeg not found')
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegPath, [
+      '-i', inputPath,
+      '-c', 'copy',                  // no re-encoding — very fast
+      '-movflags', '+faststart',     // move moov atom to beginning
+      '-y',
+      outputPath
+    ])
+
+    proc.on('close', (code) => {
+      if (code === 0) resolve()
+      else reject(new Error(`Remux failed (code ${code})`))
+    })
+    proc.on('error', reject)
+  })
+}
+
 export function getDisplayFormats(): string {
   return [...SUPPORTED_EXTENSIONS].join(', ')
 }

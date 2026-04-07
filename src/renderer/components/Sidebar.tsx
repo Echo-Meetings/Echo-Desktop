@@ -46,6 +46,11 @@ export function Sidebar() {
   const [batchDeleteCount, setBatchDeleteCount] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entry: HistoryEntry } | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [username, setUsername] = useState<string | null>(null)
+
+  useEffect(() => {
+    window.electronAPI.platform.getUsername().then(setUsername)
+  }, [])
 
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -355,7 +360,10 @@ export function Sidebar() {
       {/* Search */}
       <div style={styles.searchWrapper}>
         <div style={styles.searchField}>
-          <span style={styles.searchIcon}>Q</span>
+          <svg style={styles.searchIcon} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
           <input
             type="text"
             placeholder={t.searchPlaceholder}
@@ -442,8 +450,8 @@ export function Sidebar() {
       {/* Footer */}
       <div style={styles.footer}>
         <div style={styles.footerUser}>
-          <div style={styles.userAvatar}>SE</div>
-          <span style={styles.userName}>Sergey</span>
+          <div style={styles.userAvatar}>{username ? username.slice(0, 2).toUpperCase() : '?'}</div>
+          <span style={styles.userName}>{username || 'User'}</span>
         </div>
         <button onClick={() => setShowSettings(true)} style={styles.settingsBtn} title="Settings">
           ⚙
@@ -767,9 +775,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid transparent'
   },
   searchIcon: {
-    fontSize: 11,
     opacity: 0.4,
-    fontWeight: 600
+    flexShrink: 0
   },
   searchInput: {
     flex: 1,

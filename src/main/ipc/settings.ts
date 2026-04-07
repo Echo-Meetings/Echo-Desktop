@@ -1,6 +1,8 @@
 import { ipcMain, dialog, nativeTheme, app, shell, BrowserWindow } from 'electron'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
+import { userInfo } from 'os'
+import { logger } from '../services/Logger'
 
 // Simple JSON settings store (replaces electron-store which requires ESM)
 class SettingsStore {
@@ -40,7 +42,11 @@ const store = new SettingsStore({
   hasCompletedOnboarding: false,
   privacyConsent: false,
   storageDirectory: '',
-  activeModel: 'large-v3-turbo'
+  activeModel: 'large-v3-turbo',
+  // Performance — all acceleration enabled by default
+  accelerationMode: 'gpu',       // 'cpu' | 'gpu'
+  flashAttention: true,           // flash attention for GPU decoder
+  threadCount: 'auto'             // 'auto' | number
 })
 
 export function registerSettingsIpc(): void {
@@ -91,10 +97,20 @@ export function registerSettingsIpc(): void {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
 
+  ipcMain.handle('platform:getUsername', () => {
+    try {
+      return userInfo().username
+    } catch {
+      return null
+    }
+  })
+
   nativeTheme.on('updated', () => {
     const windows = BrowserWindow.getAllWindows()
     const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    windows.forEach((w: Electron.BrowserWindow) => w.webContents.send('theme:changed', theme))
+    windows.forEach((w: Electron.BrowserWindow) => {
+      if (!w.isDestroyed()) w.webContents.send('theme:changed', theme)
+    })
   })
 
   ipcMain.handle('settings:showPrivacyPolicy', async (_event, locale?: string) => {
@@ -208,6 +224,20 @@ export function registerSettingsIpc(): void {
         if (!resolved) resolve(false)
       })
     })
+  })
+
+  // --- Logs ---
+
+  ipcMain.handle('logs:getRecent', () => {
+    return logger.getRecentLogs()
+  })
+
+  ipcMain.handle('logs:readFile', () => {
+    return logger.readLogFile()
+  })
+
+  ipcMain.handle('logs:reveal', () => {
+    shell.showItemInFolder(logger.getLogFilePath())
   })
 }
 

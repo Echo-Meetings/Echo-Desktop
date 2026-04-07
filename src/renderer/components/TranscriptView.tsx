@@ -37,14 +37,20 @@ interface TranscriptViewProps {
 export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
   const t = useT()
   const [videoPanelWidth, setVideoPanelWidth] = useState(400)
+  const videoExpanded = videoPanelWidth >= 550
   const isVideoResizing = useRef(false)
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null)
+  const activeSubtitle = useMemo(() => {
+    if (!activeSegmentId) return null
+    return transcript.segments.find((s) => s.id === activeSegmentId)?.text || null
+  }, [activeSegmentId, transcript.segments])
   const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState(1)
   const [copySuccess, setCopySuccess] = useState(false)
   const [videoLoading, setVideoLoading] = useState(true)
   const [mediaError, setMediaError] = useState<string | null>(null)
@@ -152,10 +158,11 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
   }, [getMediaElement])
 
   const seekTrackRef = useRef<HTMLDivElement>(null)
+  const videoSeekTrackRef = useRef<HTMLDivElement>(null)
 
   const seekFromEvent = useCallback((clientX: number) => {
     const el = getMediaElement()
-    const track = seekTrackRef.current
+    const track = videoSeekTrackRef.current || seekTrackRef.current
     if (!el || !duration || !track) return
     const rect = track.getBoundingClientRect()
     const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
@@ -213,6 +220,15 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
       setIsMuted(true)
     }
   }, [getMediaElement, isMuted, volume])
+
+  const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+
+  const handlePlaybackRateChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const el = getMediaElement()
+    const rate = parseFloat(e.target.value)
+    setPlaybackRate(rate)
+    if (el) el.playbackRate = rate
+  }, [getMediaElement])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -300,50 +316,6 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
           </div>
         )}
 
-        {/* Playback controls */}
-        {mediaUrl && (
-          <div style={styles.controls}>
-            <button onClick={skipBackward} style={styles.skipButton} title="-10s">
-              <span style={styles.skipLabel}>10</span>{'◁◁'}
-            </button>
-            <button onClick={togglePlayPause} style={styles.playButton}>
-              {isPlaying ? '❚❚' : '▶'}
-            </button>
-            <button onClick={skipForward} style={styles.skipButton} title="+10s">
-              {'▷▷'}<span style={styles.skipLabel}>10</span>
-            </button>
-            <span style={styles.timeDisplay}>{formatTimestamp(currentTime)}</span>
-            <div ref={seekTrackRef} style={styles.seekTrack} onMouseDown={handleSeekMouseDown}>
-              <div style={styles.seekTrackBg} />
-              <div
-                style={{
-                  ...styles.seekFill,
-                  width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%'
-                }}
-              />
-              <div
-                style={{
-                  ...styles.seekThumb,
-                  left: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%'
-                }}
-              />
-            </div>
-            <span style={styles.timeDisplay}>{formatTimestamp(duration)}</span>
-            <button onClick={toggleMute} style={styles.volumeButton} title={isMuted ? t.unmute : t.mute}>
-              {isMuted ? '◇' : '◆'}
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={isMuted ? 0 : volume}
-              onChange={handleVolumeChange}
-              style={styles.volumeSlider}
-            />
-          </div>
-        )}
-
         {/* Segments */}
         <div ref={scrollContainerRef} style={styles.segmentList}>
           {transcript.segments.map((segment) => {
@@ -384,6 +356,55 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
           })}
         </div>
 
+        {/* Playback controls */}
+        {mediaUrl && (
+          <div style={styles.controls}>
+            <button onClick={skipBackward} style={styles.skipButton} title="-10s">
+              <span style={styles.skipLabel}>10</span>{'◁◁'}
+            </button>
+            <button onClick={togglePlayPause} style={styles.playButton}>
+              {isPlaying ? '❚❚' : '▶'}
+            </button>
+            <button onClick={skipForward} style={styles.skipButton} title="+10s">
+              {'▷▷'}<span style={styles.skipLabel}>10</span>
+            </button>
+            <span style={styles.timeDisplay}>{formatTimestamp(currentTime)}</span>
+            <div ref={seekTrackRef} style={styles.seekTrack} onMouseDown={handleSeekMouseDown}>
+              <div style={styles.seekTrackBg} />
+              <div
+                style={{
+                  ...styles.seekFill,
+                  width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%'
+                }}
+              />
+              <div
+                style={{
+                  ...styles.seekThumb,
+                  left: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%'
+                }}
+              />
+            </div>
+            <span style={styles.timeDisplay}>{formatTimestamp(duration)}</span>
+            <select value={playbackRate} onChange={handlePlaybackRateChange} style={styles.speedSelect}>
+              {SPEED_OPTIONS.map((r) => (
+                <option key={r} value={r}>{r}x</option>
+              ))}
+            </select>
+            <button onClick={toggleMute} style={styles.volumeButton} title={isMuted ? t.unmute : t.mute}>
+              {isMuted ? '◇' : '◆'}
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={isMuted ? 0 : volume}
+              onChange={handleVolumeChange}
+              style={styles.volumeSlider}
+            />
+          </div>
+        )}
+
         {/* Bottom bar */}
         <div style={styles.bottomBar}>
           <button onClick={handleCopy} style={styles.actionButton}>
@@ -407,7 +428,7 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
             const onMove = (ev: MouseEvent) => {
               if (!isVideoResizing.current) return
               // Dragging left increases width, right decreases
-              const newW = Math.max(280, Math.min(800, startW - (ev.clientX - startX)))
+              const newW = Math.max(280, Math.min(1200, startW - (ev.clientX - startX)))
               setVideoPanelWidth(newW)
             }
             const onUp = () => {
@@ -465,6 +486,57 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
             onLoadedData={() => { setVideoLoading(false); setMediaError(null) }}
             {...mediaEvents}
           />
+          {/* Subtitles overlay */}
+          {videoExpanded && activeSubtitle && isPlaying && (
+            <div style={styles.subtitleOverlay}>
+              <span style={styles.subtitleText}>{activeSubtitle}</span>
+            </div>
+          )}
+          {/* Controls overlay when expanded */}
+          {videoExpanded && (
+            <div style={styles.videoControls}>
+              <div style={styles.videoControlsRow}>
+                <button onClick={skipBackward} style={styles.videoCtrlBtn}>{'◁◁'}</button>
+                <button onClick={togglePlayPause} style={styles.videoCtrlPlayBtn}>
+                  {isPlaying ? '❚❚' : '▶'}
+                </button>
+                <button onClick={skipForward} style={styles.videoCtrlBtn}>{'▷▷'}</button>
+                <span style={styles.videoCtrlTime}>{formatTimestamp(currentTime)}</span>
+                <div style={styles.videoSeekTrack} ref={videoSeekTrackRef} onMouseDown={(e) => {
+                  const el = getMediaElement()
+                  const track = videoSeekTrackRef.current
+                  if (!el || !duration || !track) return
+                  const rect = track.getBoundingClientRect()
+                  const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                  el.currentTime = fraction * duration
+                  setCurrentTime(fraction * duration)
+                  const onMove = (ev: MouseEvent) => {
+                    const f = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width))
+                    el.currentTime = f * duration
+                    setCurrentTime(f * duration)
+                  }
+                  const onUp = () => {
+                    document.removeEventListener('mousemove', onMove)
+                    document.removeEventListener('mouseup', onUp)
+                  }
+                  document.addEventListener('mousemove', onMove)
+                  document.addEventListener('mouseup', onUp)
+                }}>
+                  <div style={styles.videoSeekBg} />
+                  <div style={{ ...styles.videoSeekFill, width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }} />
+                </div>
+                <span style={styles.videoCtrlTime}>{formatTimestamp(duration)}</span>
+                <select value={playbackRate} onChange={handlePlaybackRateChange} style={styles.videoCtrlSpeed}>
+                  {SPEED_OPTIONS.map((r) => (
+                    <option key={r} value={r}>{r}x</option>
+                  ))}
+                </select>
+                <button onClick={toggleMute} style={styles.videoCtrlBtn}>
+                  {isMuted ? '◇' : '◆'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         </>
       )}
@@ -560,7 +632,8 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 10,
     padding: '8px var(--spacing-sm)',
-    flexShrink: 0
+    flexShrink: 0,
+    borderTop: '1px solid var(--color-border)'
   },
   skipButton: {
     height: 28,
@@ -595,6 +668,20 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0
+  },
+  speedSelect: {
+    height: 28,
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-sm)',
+    backgroundColor: 'transparent',
+    color: 'var(--color-secondary)',
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, "SF Mono", monospace',
+    flexShrink: 0,
+    padding: '0 4px',
+    outline: 'none'
   },
   volumeButton: {
     width: 28,
@@ -758,6 +845,107 @@ const styles: Record<string, React.CSSProperties> = {
   loaderText: {
     fontSize: 'var(--font-caption)',
     color: 'rgba(255,255,255,0.5)'
+  },
+  subtitleOverlay: {
+    position: 'absolute' as const,
+    bottom: 56,
+    left: 16,
+    right: 16,
+    display: 'flex',
+    justifyContent: 'center',
+    pointerEvents: 'none' as const,
+    zIndex: 2
+  },
+  subtitleText: {
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    color: '#fff',
+    padding: '6px 14px',
+    borderRadius: 6,
+    fontSize: 15,
+    lineHeight: 1.5,
+    textAlign: 'center' as const,
+    maxWidth: '85%'
+  },
+  videoControls: {
+    position: 'absolute' as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+    padding: '24px 12px 10px',
+    zIndex: 3
+  },
+  videoControlsRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8
+  },
+  videoCtrlBtn: {
+    border: 'none',
+    background: 'none',
+    color: 'rgba(255,255,255,0.8)',
+    cursor: 'pointer',
+    fontSize: 13,
+    padding: '4px 6px',
+    flexShrink: 0
+  },
+  videoCtrlPlayBtn: {
+    width: 32,
+    height: 32,
+    border: 'none',
+    borderRadius: '50%',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 14,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  },
+  videoCtrlTime: {
+    fontSize: 11,
+    fontFamily: 'ui-monospace, "SF Mono", monospace',
+    color: 'rgba(255,255,255,0.7)',
+    flexShrink: 0,
+    minWidth: 36
+  },
+  videoSeekTrack: {
+    flex: 1,
+    height: 24,
+    display: 'flex',
+    alignItems: 'center',
+    cursor: 'pointer',
+    position: 'relative' as const
+  },
+  videoSeekBg: {
+    position: 'absolute' as const,
+    left: 0,
+    right: 0,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)'
+  },
+  videoSeekFill: {
+    position: 'absolute' as const,
+    left: 0,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#fff',
+    transition: 'width 100ms linear'
+  },
+  videoCtrlSpeed: {
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: 4,
+    backgroundColor: 'transparent',
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, "SF Mono", monospace',
+    padding: '2px 4px',
+    outline: 'none',
+    cursor: 'pointer',
+    flexShrink: 0
   },
   mediaBanner: {
     padding: '6px var(--spacing-sm)',
