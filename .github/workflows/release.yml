@@ -61,7 +61,7 @@ jobs:
           path: release/*.zip
           if-no-files-found: error
 
-  # Cross-compile whisper.cpp for ARM64 Windows (native binary, no emulation)
+  # Cross-compile whisper.cpp for ARM64 Windows using Clang (MSVC not supported for ARM)
   build-whisper-arm64:
     runs-on: windows-latest
     steps:
@@ -71,9 +71,9 @@ jobs:
           repository: ggml-org/whisper.cpp
           ref: v1.8.4
 
-      - name: Cross-compile for ARM64
+      - name: Cross-compile for ARM64 with Clang
         run: |
-          cmake -B build -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+          cmake -B build -T ClangCL -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_OPENMP=OFF
           cmake --build build --config Release --target whisper-cli
 
       - name: Package binaries
