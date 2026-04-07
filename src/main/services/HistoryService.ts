@@ -1,13 +1,12 @@
 import {
   existsSync, mkdirSync, writeFileSync, readFileSync,
-  readdirSync, unlinkSync, copyFileSync, statSync, renameSync
+  unlinkSync, renameSync
 } from 'fs'
 import { readdir, readFile } from 'fs/promises'
-import { join, extname, basename } from 'path'
+import { join, extname } from 'path'
 import { app } from 'electron'
 import { randomUUID } from 'crypto'
 import type { TranscriptResult } from './TranscriptionService'
-import { isVideoFile, checkIsHevc, convertVideoForPlayback, remuxWithFastStart } from './FileImportService'
 
 export interface HistorySegment {
   id: string
@@ -46,7 +45,6 @@ export class HistoryService {
   private ensureDirectories(): void {
     if (!existsSync(this.rootDir)) mkdirSync(this.rootDir, { recursive: true })
     if (!existsSync(this.echoDir)) mkdirSync(this.echoDir, { recursive: true })
-    if (!existsSync(this.mediaDir)) mkdirSync(this.mediaDir, { recursive: true })
   }
 
   setRootDir(dir: string): void {
@@ -58,7 +56,7 @@ export class HistoryService {
 
   /**
    * Save a transcription result as a history entry.
-   * Media is copied immediately. For MOV/M4V (HEVC), conversion happens in background.
+   * Only transcription data is stored — media files are not copied.
    */
   save(result: TranscriptResult, sourceFilePath: string | null): HistoryEntry {
     const id = randomUUID()
@@ -99,41 +97,6 @@ export class HistoryService {
       })
       .join('\n')
     writeFileSync(txtPath, timestampedText, 'utf-8')
-
-    // Copy media file for offline playback
-    if (sourceFilePath && existsSync(sourceFilePath)) {
-      const mediaExt = extname(sourceFilePath)
-      const mediaDest = join(this.mediaDir, `${id}${mediaExt}`)
-      try {
-        copyFileSync(sourceFilePath, mediaDest)
-      } catch {
-        // Non-critical — original file still accessible
-      }
-
-      // Process video files in background for Chromium compatibility
-      if (isVideoFile(sourceFilePath)) {
-        checkIsHevc(mediaDest).then(async (isHevc) => {
-          const mp4Dest = join(this.mediaDir, `${id}.mp4`)
-          try {
-            if (isHevc) {
-              // HEVC → full H.264 re-encode
-              await convertVideoForPlayback(mediaDest, mp4Dest)
-              entry.fileExtension = 'mp4'
-              writeFileSync(join(this.echoDir, `${id}.json`), JSON.stringify(entry, null, 2), 'utf-8')
-              try { unlinkSync(mediaDest) } catch { /* ok */ }
-            } else {
-              // Non-HEVC → remux with faststart (fixes "demuxer seek failed")
-              const tempDest = mediaDest + '.tmp'
-              await remuxWithFastStart(mediaDest, tempDest)
-              try { unlinkSync(mediaDest) } catch { /* ok */ }
-              renameSync(tempDest, mediaDest)
-            }
-          } catch {
-            // Conversion/remux failed — keep original copy
-          }
-        })
-      }
-    }
 
     return entry
   }
@@ -251,23 +214,23 @@ export class HistoryService {
   }
 
   /**
-   * Resolve the media file URL for playback.
-   * Checks for converted H.264 MP4 first, then original copy, then source file.
+   * Resolve the media file path for playback.
+   * Prefers original source file; falls back to legacy local copies for older entries.
    */
   resolveMediaPath(entry: HistoryEntry): string | null {
-    // Check for converted MP4 first (HEVC → H.264 background conversion)
+    // Prefer original source file
+    if (entry.sourceFilePath && existsSync(entry.sourceFilePath)) {
+      return entry.sourceFilePath
+    }
+
+    // Legacy fallback: converted MP4 from older entries
     const mp4Path = join(this.mediaDir, `${entry.id}.mp4`)
     if (existsSync(mp4Path)) return mp4Path
 
-    // Check local copy with original extension
+    // Legacy fallback: local copy with original extension
     if (entry.fileExtension && entry.fileExtension !== 'mp4') {
       const localPath = join(this.mediaDir, `${entry.id}.${entry.fileExtension}`)
       if (existsSync(localPath)) return localPath
-    }
-
-    // Fall back to original source
-    if (entry.sourceFilePath && existsSync(entry.sourceFilePath)) {
-      return entry.sourceFilePath
     }
 
     return null
