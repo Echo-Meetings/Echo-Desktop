@@ -61,6 +61,35 @@ jobs:
           path: release/*.zip
           if-no-files-found: error
 
+  # Cross-compile whisper.cpp for ARM64 Windows (native binary, no emulation)
+  build-whisper-arm64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: v1.8.4
+
+      - name: Cross-compile for ARM64
+        run: |
+          cmake -B build -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+          cmake --build build --config Release --target whisper-cli
+
+      - name: Package binaries
+        run: |
+          New-Item -ItemType Directory -Path package -Force
+          Copy-Item build\bin\Release\whisper-cli.exe package\
+          Get-ChildItem build\bin\Release\*.dll | Copy-Item -Destination package\
+          Compress-Archive -Path package\* -DestinationPath whisper-bin-arm64-windows.zip
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-arm64
+          path: whisper-bin-arm64-windows.zip
+
   build-linux:
     runs-on: ubuntu-latest
     strategy:
@@ -90,7 +119,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [build-mac, build-windows, build-linux]
+    needs: [build-mac, build-windows, build-whisper-arm64, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

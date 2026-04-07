@@ -102,16 +102,16 @@ export class TranscriptionQueue {
       }
 
       // Ensure whisper-cli (and correct architecture)
-      if (this.whisperBinaryManager.needsArchFix()) {
-        console.log('[queue] Wrong whisper-cli architecture detected, re-downloading correct build')
-        this.whisperBinaryManager.deleteWhisperBinary()
+      const needsArchFix = this.whisperBinaryManager.needsArchFix()
+      if (needsArchFix) {
+        console.log('[queue] Wrong whisper-cli architecture detected, downloading native build')
       }
-      if (!locateWhisperCli()) {
+      if (!locateWhisperCli() || needsArchFix) {
         if (this.whisperBinaryManager.canAutoDownload()) {
           this.send('queue:sessionProgress', sessionId, -1, null)
           await this.whisperBinaryManager.download((fraction) => {
             this.send('deps:whisperDownloadProgress', fraction)
-          })
+          }, needsArchFix)
         } else {
           throw new Error(this.whisperBinaryManager.getInstallInstructions())
         }
