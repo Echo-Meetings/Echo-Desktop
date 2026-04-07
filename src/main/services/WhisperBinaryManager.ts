@@ -30,11 +30,13 @@ const FFMPEG_WIN64_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/downloa
 function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz'; binariesInDir: string } | null {
   if (process.platform === 'win32') {
     if (process.arch === 'arm64') {
-      // Native ARM64 build hosted in our repo — emulated x64/x86 builds crash with ACCESS_VIOLATION
+      // Native ARM64 build cross-compiled in our CI — emulated x64/x86 builds crash with ACCESS_VIOLATION.
+      // The binary is uploaded as a release asset alongside app binaries.
+      // Use /latest redirect so it works regardless of app version.
       return {
-        url: `https://github.com/Echo-Meetings/Echo-Desktop/releases/download/whisper-v${WHISPER_VERSION}-arm64/whisper-bin-arm64-windows.zip`,
+        url: 'https://github.com/Echo-Meetings/Echo-Desktop/releases/latest/download/whisper-bin-arm64-windows.zip',
         archiveType: 'zip',
-        binariesInDir: ''  // flat zip, no subdirectory
+        binariesInDir: ''  // flat zip — files directly in root
       }
     }
     return {
@@ -71,18 +73,14 @@ export class WhisperBinaryManager {
     const whisperPath = locateWhisperCli()
     if (!whisperPath) return false
 
-    // Check if a x64 DLL exists alongside the binary — x64 builds include ggml-cpu.dll (~15MB+),
-    // while Win32 builds have a smaller one. We detect by checking for x64-specific file naming
-    // in the download marker, or by binary size heuristic.
-    // Simplest approach: if we have a marker file, check it. Otherwise, re-download to be safe.
     const markerPath = join(this.binDir, '.whisper-arch')
     try {
       if (existsSync(markerPath)) {
         const marker = readFileSync(markerPath, 'utf-8').trim()
-        return marker !== 'Win32'
+        return marker !== 'arm64'
       }
     } catch { /* ok */ }
-    // No marker = old download (was always x64), needs fix
+    // No marker = old download (was x64), needs replacement with native ARM64 build
     return true
   }
 
@@ -107,12 +105,16 @@ export class WhisperBinaryManager {
   /**
    * Download whisper-cli binary for Windows.
    */
-  async download(onProgress: (fraction: number) => void): Promise<string> {
-    const existing = locateWhisperCli()
-    if (existing) {
-      onProgress(1)
-      return existing
+  async download(onProgress: (fraction: number) => void, force = false): Promise<string> {
+    if (!force) {
+      const existing = locateWhisperCli()
+      if (existing) {
+        onProgress(1)
+        return existing
+      }
     }
+    // Delete old binary before re-downloading (only when force=true)
+    if (force) this.deleteWhisperBinary()
 
     const info = getWhisperDownloadInfo()
     if (!info) throw new Error(this.getInstallInstructions())
@@ -131,7 +133,7 @@ export class WhisperBinaryManager {
     if (!whisperPath) throw new Error('whisper-cli download succeeded but binary not found after extraction')
 
     // Write arch marker so we can detect wrong-arch binaries later
-    const variant = process.arch === 'arm64' ? 'Win32' : 'x64'
+    const variant = process.arch === 'arm64' ? 'arm64' : 'x64'
     try { writeFileSync(join(this.binDir, '.whisper-arch'), variant) } catch { /* ok */ }
 
     onProgress(1)
