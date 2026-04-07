@@ -80,6 +80,10 @@ export interface Translations {
   whisperLabel: string
   modelLabel: string
   retry: string
+  vcRuntimeRequired: string
+  vcRuntimeRequiredDesc: string
+  downloadVcRuntime: string
+  manualInstallRequired: string
 
   // Onboarding
   welcomeTitle: string
@@ -183,6 +187,35 @@ export interface Translations {
   diagnosticsReinstalling: string
   diagnosticsDownloadVcRuntime: string
 
+  // ETA / Performance
+  remaining: string
+
+  // Model picker
+  modelPickerSection: string
+  modelPickerDesc: string
+  modelAccuracyLow: string
+  modelAccuracyMediumLow: string
+  modelAccuracyMedium: string
+  modelAccuracyHigh: string
+  modelAccuracyVeryHigh: string
+  modelSpeedLabel: string
+  modelDownloaded: string
+  modelNotDownloaded: string
+  modelDownloading: string
+  modelDeleteConfirm: string
+  modelTiny: string
+  modelBase: string
+  modelSmall: string
+  modelMedium: string
+  modelLargeV3Turbo: string
+  modelLargeV3TurboQ5: string
+
+  // Hardware
+  hardwareSection: string
+  cpuCores: string
+  totalMemory: string
+  threadsUsed: string
+
   // Close warning
   closeWarningTitle: string
   closeWarningMessage: string
@@ -251,6 +284,10 @@ export const translations: Record<UILocale, Translations> = {
     whisperLabel: 'Whisper CLI (speech recognition)',
     modelLabel: 'Speech model (~1.5 GB)',
     retry: 'Retry',
+    vcRuntimeRequired: 'Visual C++ Runtime Required',
+    vcRuntimeRequiredDesc: 'Whisper CLI requires the Visual C++ Redistributable to run. Please install it and restart Echo.',
+    downloadVcRuntime: 'Download VC++ Runtime',
+    manualInstallRequired: 'Whisper CLI must be installed manually on this platform.',
     welcomeTitle: 'Welcome to Echo',
     welcomeSubtitle: 'Private, offline transcription for your audio and video files. Everything stays on your device.',
     featurePrivateTitle: 'Private by design',
@@ -343,6 +380,29 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsReinstallConfirm: 'This will delete the whisper-cli binary and re-download it. Continue?',
     diagnosticsReinstalling: 'Reinstalling...',
     diagnosticsDownloadVcRuntime: 'Download',
+    remaining: 'remaining',
+    modelPickerSection: 'AI Model',
+    modelPickerDesc: 'Smaller models are faster but less accurate. Larger models produce better results but need more RAM and processing power.',
+    modelAccuracyLow: 'Low',
+    modelAccuracyMediumLow: 'Medium-Low',
+    modelAccuracyMedium: 'Medium',
+    modelAccuracyHigh: 'High',
+    modelAccuracyVeryHigh: 'Very High',
+    modelSpeedLabel: 'Speed',
+    modelDownloaded: 'Downloaded',
+    modelNotDownloaded: 'Not downloaded',
+    modelDownloading: 'Downloading...',
+    modelDeleteConfirm: 'Delete this model? It will need to be re-downloaded to use again.',
+    modelTiny: 'Tiny',
+    modelBase: 'Base',
+    modelSmall: 'Small',
+    modelMedium: 'Medium',
+    modelLargeV3Turbo: 'Large V3 Turbo',
+    modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    hardwareSection: 'Hardware',
+    cpuCores: 'CPU Cores',
+    totalMemory: 'Total Memory',
+    threadsUsed: 'Threads Used',
     closeWarningTitle: 'Transcription in progress',
     closeWarningMessage: 'One or more files are still being transcribed.',
     closeWarningDetail: 'If you quit now, progress will be lost. Are you sure?',
@@ -409,6 +469,10 @@ export const translations: Record<UILocale, Translations> = {
     whisperLabel: 'Whisper CLI (распознавание речи)',
     modelLabel: 'Модель речи (~1.5 ГБ)',
     retry: 'Повторить',
+    vcRuntimeRequired: 'Требуется Visual C++ Runtime',
+    vcRuntimeRequiredDesc: 'Для работы Whisper CLI необходим Visual C++ Redistributable. Установите его и перезапустите Echo.',
+    downloadVcRuntime: 'Скачать VC++ Runtime',
+    manualInstallRequired: 'На этой платформе Whisper CLI необходимо установить вручную.',
     welcomeTitle: 'Добро пожаловать в Echo',
     welcomeSubtitle: 'Приватная офлайн-транскрипция аудио и видео файлов. Все данные остаются на вашем устройстве.',
     featurePrivateTitle: 'Приватность по умолчанию',
@@ -501,6 +565,29 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsReinstallConfirm: 'Бинарник whisper-cli будет удалён и скачан заново. Продолжить?',
     diagnosticsReinstalling: 'Переустановка...',
     diagnosticsDownloadVcRuntime: 'Скачать',
+    remaining: 'осталось',
+    modelPickerSection: 'ИИ-модель',
+    modelPickerDesc: 'Модели меньшего размера быстрее, но менее точны. Большие модели дают лучшие результаты, но требуют больше памяти и вычислительных ресурсов.',
+    modelAccuracyLow: 'Низкая',
+    modelAccuracyMediumLow: 'Ниже средней',
+    modelAccuracyMedium: 'Средняя',
+    modelAccuracyHigh: 'Высокая',
+    modelAccuracyVeryHigh: 'Очень высокая',
+    modelSpeedLabel: 'Скорость',
+    modelDownloaded: 'Загружена',
+    modelNotDownloaded: 'Не загружена',
+    modelDownloading: 'Загрузка...',
+    modelDeleteConfirm: 'Удалить эту модель? Для повторного использования потребуется загрузить заново.',
+    modelTiny: 'Tiny',
+    modelBase: 'Base',
+    modelSmall: 'Small',
+    modelMedium: 'Medium',
+    modelLargeV3Turbo: 'Large V3 Turbo',
+    modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    hardwareSection: 'Оборудование',
+    cpuCores: 'Ядра CPU',
+    totalMemory: 'Общая память',
+    threadsUsed: 'Используемые потоки',
     closeWarningTitle: 'Транскрипция в процессе',
     closeWarningMessage: 'Один или несколько файлов еще обрабатываются.',
     closeWarningDetail: 'Если вы закроете приложение, прогресс будет потерян. Вы уверены?',
@@ -567,6 +654,10 @@ export const translations: Record<UILocale, Translations> = {
     whisperLabel: 'Whisper CLI (Spracherkennung)',
     modelLabel: 'Sprachmodell (~1,5 GB)',
     retry: 'Wiederholen',
+    vcRuntimeRequired: 'Visual C++ Runtime erforderlich',
+    vcRuntimeRequiredDesc: 'Whisper CLI benötigt Visual C++ Redistributable. Bitte installieren und Echo neu starten.',
+    downloadVcRuntime: 'VC++ Runtime herunterladen',
+    manualInstallRequired: 'Whisper CLI muss auf dieser Plattform manuell installiert werden.',
     welcomeTitle: 'Willkommen bei Echo',
     welcomeSubtitle: 'Private Offline-Transkription für Ihre Audio- und Videodateien. Alles bleibt auf Ihrem Gerät.',
     featurePrivateTitle: 'Privatsphäre zuerst',
@@ -659,6 +750,29 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsReinstallConfirm: 'whisper-cli wird gelöscht und neu heruntergeladen. Fortfahren?',
     diagnosticsReinstalling: 'Neu installieren...',
     diagnosticsDownloadVcRuntime: 'Herunterladen',
+    remaining: 'verbleibend',
+    modelPickerSection: 'KI-Modell',
+    modelPickerDesc: 'Kleinere Modelle sind schneller, aber weniger genau. Größere Modelle liefern bessere Ergebnisse, benötigen aber mehr RAM und Rechenleistung.',
+    modelAccuracyLow: 'Niedrig',
+    modelAccuracyMediumLow: 'Mittel-Niedrig',
+    modelAccuracyMedium: 'Mittel',
+    modelAccuracyHigh: 'Hoch',
+    modelAccuracyVeryHigh: 'Sehr Hoch',
+    modelSpeedLabel: 'Geschwindigkeit',
+    modelDownloaded: 'Heruntergeladen',
+    modelNotDownloaded: 'Nicht heruntergeladen',
+    modelDownloading: 'Wird heruntergeladen...',
+    modelDeleteConfirm: 'Dieses Modell löschen? Es muss erneut heruntergeladen werden.',
+    modelTiny: 'Tiny',
+    modelBase: 'Base',
+    modelSmall: 'Small',
+    modelMedium: 'Medium',
+    modelLargeV3Turbo: 'Large V3 Turbo',
+    modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    hardwareSection: 'Hardware',
+    cpuCores: 'CPU-Kerne',
+    totalMemory: 'Gesamtspeicher',
+    threadsUsed: 'Verwendete Threads',
     closeWarningTitle: 'Transkription läuft',
     closeWarningMessage: 'Eine oder mehrere Dateien werden noch transkribiert.',
     closeWarningDetail: 'Wenn Sie jetzt beenden, geht der Fortschritt verloren. Sind Sie sicher?',
@@ -725,6 +839,10 @@ export const translations: Record<UILocale, Translations> = {
     whisperLabel: 'Whisper CLI (reconnaissance vocale)',
     modelLabel: 'Modèle vocal (~1,5 Go)',
     retry: 'Réessayer',
+    vcRuntimeRequired: 'Visual C++ Runtime requis',
+    vcRuntimeRequiredDesc: 'Whisper CLI nécessite Visual C++ Redistributable. Veuillez l\'installer et redémarrer Echo.',
+    downloadVcRuntime: 'Télécharger VC++ Runtime',
+    manualInstallRequired: 'Whisper CLI doit être installé manuellement sur cette plateforme.',
     welcomeTitle: 'Bienvenue dans Echo',
     welcomeSubtitle: 'Transcription privée et hors ligne de vos fichiers audio et vidéo. Tout reste sur votre appareil.',
     featurePrivateTitle: 'Confidentialité par défaut',
@@ -817,6 +935,29 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsReinstallConfirm: 'whisper-cli sera supprimé et retéléchargé. Continuer ?',
     diagnosticsReinstalling: 'Réinstallation...',
     diagnosticsDownloadVcRuntime: 'Télécharger',
+    remaining: 'restant',
+    modelPickerSection: 'Modèle IA',
+    modelPickerDesc: 'Les modèles plus petits sont plus rapides mais moins précis. Les modèles plus grands produisent de meilleurs résultats mais nécessitent plus de RAM et de puissance de calcul.',
+    modelAccuracyLow: 'Faible',
+    modelAccuracyMediumLow: 'Moyen-Faible',
+    modelAccuracyMedium: 'Moyen',
+    modelAccuracyHigh: 'Élevée',
+    modelAccuracyVeryHigh: 'Très Élevée',
+    modelSpeedLabel: 'Vitesse',
+    modelDownloaded: 'Téléchargé',
+    modelNotDownloaded: 'Non téléchargé',
+    modelDownloading: 'Téléchargement...',
+    modelDeleteConfirm: 'Supprimer ce modèle ? Il devra être retéléchargé pour être utilisé.',
+    modelTiny: 'Tiny',
+    modelBase: 'Base',
+    modelSmall: 'Small',
+    modelMedium: 'Medium',
+    modelLargeV3Turbo: 'Large V3 Turbo',
+    modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    hardwareSection: 'Matériel',
+    cpuCores: 'Cœurs CPU',
+    totalMemory: 'Mémoire totale',
+    threadsUsed: 'Threads utilisés',
     closeWarningTitle: 'Transcription en cours',
     closeWarningMessage: 'Un ou plusieurs fichiers sont encore en cours de transcription.',
     closeWarningDetail: 'Si vous quittez maintenant, la progression sera perdue. Êtes-vous sûr ?',

@@ -13,7 +13,7 @@ export function ProcessingView({ session }: ProcessingViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [visibleCount, setVisibleCount] = useState(0)
 
-  const { fileName, progress, detectedLanguage, liveSegments, status } = session
+  const { fileName, progress, detectedLanguage, etaSeconds, liveSegments, status } = session
 
   // Smooth scroll to latest segment
   useEffect(() => {
@@ -79,7 +79,11 @@ export function ProcessingView({ session }: ProcessingViewProps) {
               />
             </div>
             <div style={styles.progressLabel}>
-              {percent !== null ? `${percent}%` : t.preparing}
+              {percent !== null
+                ? etaSeconds !== null && etaSeconds > 0
+                  ? `${percent}% — ~${formatEta(etaSeconds)} ${t.remaining}`
+                  : `${percent}%`
+                : t.preparing}
             </div>
           </div>
         )}
@@ -156,6 +160,13 @@ export function ProcessingView({ session }: ProcessingViewProps) {
       </div>
     </div>
   )
+}
+
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
 }
 
 const keyframes = `

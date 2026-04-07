@@ -7,6 +7,7 @@ import { WhisperBinaryManager } from './WhisperBinaryManager'
 import * as FileImportService from './FileImportService'
 import { HistoryService } from './HistoryService'
 import { locateWhisperCli, locateFFmpeg } from './BinaryPaths'
+import { getFreeMemoryMB } from './HardwareDetection'
 
 interface QueueItem {
   sessionId: string
@@ -127,6 +128,17 @@ export class TranscriptionQueue {
         this.send('model:loaded')
       }
 
+      // Memory pre-check: warn if free RAM is too low for the active model
+      const activeModel = this.modelManager.getActiveModel()
+      const freeMB = getFreeMemoryMB()
+      if (freeMB < activeModel.ramRequiredMB) {
+        this.send('queue:memoryWarning', sessionId, {
+          freeMemoryMB: freeMB,
+          requiredMB: activeModel.ramRequiredMB,
+          modelId: activeModel.id
+        })
+      }
+
       // Convert to WAV
       this.send('queue:sessionProgress', sessionId, -1, null)
       let wavPath: string
@@ -149,8 +161,8 @@ export class TranscriptionQueue {
         FileImportService.getFileName(filePath),
         this.modelManager.getModelPath(),
         language,
-        (fraction, lang) => {
-          this.send('queue:sessionProgress', sessionId, fraction, lang)
+        (fraction, lang, eta) => {
+          this.send('queue:sessionProgress', sessionId, fraction, lang, eta)
         },
         (segments) => {
           this.send('queue:sessionSegment', sessionId, segments)

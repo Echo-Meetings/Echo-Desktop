@@ -60,8 +60,28 @@ const electronAPI = {
     getStatus: (): Promise<{ loaded: boolean; path: string | null }> =>
       ipcRenderer.invoke('model:getStatus'),
     load: (): Promise<void> => ipcRenderer.invoke('model:load'),
-    delete: (): Promise<{ deleted: boolean }> => ipcRenderer.invoke('model:delete'),
-    getSize: (): Promise<{ size: number; path: string }> => ipcRenderer.invoke('model:getSize')
+    delete: (modelId?: string): Promise<{ deleted: boolean }> => ipcRenderer.invoke('model:delete', modelId),
+    getSize: (): Promise<{ size: number; path: string }> => ipcRenderer.invoke('model:getSize'),
+    getAvailableModels: (): Promise<Array<{
+      id: string; filename: string; sizeBytes: number; ramRequiredMB: number
+      labelKey: string; accuracy: string; speedMultiplier: number; multilingual: boolean
+    }>> => ipcRenderer.invoke('model:getAvailableModels'),
+    getDownloadedModels: (): Promise<Record<string, boolean>> =>
+      ipcRenderer.invoke('model:getDownloadedModels'),
+    getActiveModelId: (): Promise<string> => ipcRenderer.invoke('model:getActiveModelId'),
+    setActiveModelId: (modelId: string): Promise<void> =>
+      ipcRenderer.invoke('model:setActiveModelId', modelId),
+    downloadById: (modelId: string): Promise<void> =>
+      ipcRenderer.invoke('model:downloadById', modelId),
+    getModelsDiskUsage: (): Promise<number> => ipcRenderer.invoke('model:getModelsDiskUsage')
+  },
+
+  // Hardware info
+  hardware: {
+    getInfo: (): Promise<{
+      cpuCores: number; totalMemoryMB: number; freeMemoryMB: number
+      platform: string; arch: string; optimalThreads: number
+    }> => ipcRenderer.invoke('hardware:getInfo')
   },
 
   // Dependencies (whisper-cli, ffmpeg)
@@ -77,6 +97,8 @@ const electronAPI = {
       whisperInstallInstructions: string
       platform: string
       arch: string
+      vcRuntimeInstalled: boolean
+      vcRuntimeDownloadUrl: string
     }> => ipcRenderer.invoke('deps:getStatus'),
     diagnose: (): Promise<{
       ok: boolean
@@ -147,6 +169,7 @@ const electronAPI = {
       'queue:sessionCompleted',
       'queue:sessionError',
       'queue:sessionRemoved',
+      'queue:memoryWarning',
       // Legacy transcription events
       'transcription:progress',
       'transcription:segment',

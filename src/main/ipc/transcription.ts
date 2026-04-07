@@ -1,4 +1,6 @@
-import { ipcMain } from 'electron'
+import { ipcMain, app } from 'electron'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import { ModelManager } from '../services/ModelManager'
 import { WhisperBinaryManager } from '../services/WhisperBinaryManager'
 import { HistoryService } from '../services/HistoryService'
@@ -8,6 +10,17 @@ const modelManager = new ModelManager()
 const whisperBinaryManager = new WhisperBinaryManager()
 const historyService = new HistoryService()
 const queue = new TranscriptionQueue(modelManager, whisperBinaryManager, historyService)
+
+// Restore saved active model from settings
+try {
+  const settingsPath = join(app.getPath('userData'), 'settings.json')
+  if (existsSync(settingsPath)) {
+    const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
+    if (settings.activeModel) {
+      modelManager.setActiveModelId(settings.activeModel)
+    }
+  }
+} catch { /* ok */ }
 
 export { historyService, modelManager, whisperBinaryManager }
 

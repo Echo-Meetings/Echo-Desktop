@@ -57,10 +57,11 @@ export const Button: React.FC<ButtonProps> = ({
         };
       default:
         return {
-          border: '1px solid var(--color-border)',
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: isHovered ? 'var(--color-border-strong)' : 'var(--color-border)',
           backgroundColor: 'var(--color-background)',
           color: 'var(--color-foreground)',
-          ...(isHovered && { borderColor: 'var(--color-border-strong)' }),
         };
     }
   };

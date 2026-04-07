@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '@/stores/appStore'
 import { useT } from '@/i18n'
 
-type SetupStep = 'checking' | 'ffmpeg' | 'whisper' | 'model' | 'done'
+type SetupStep = 'checking' | 'vcruntime' | 'ffmpeg' | 'whisper' | 'model' | 'done'
 
 interface StepInfo {
   label: string
@@ -17,6 +17,8 @@ export function ModelSetup() {
   const [ffmpegProgress, setFfmpegProgress] = useState(0)
   const [whisperProgress, setWhisperProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [vcRuntimeInfo, setVcRuntimeInfo] = useState<{ downloadUrl: string } | null>(null)
+  const [manualInstallInstructions, setManualInstallInstructions] = useState<string | null>(null)
 
   useEffect(() => {
     runSetup()
@@ -54,22 +56,32 @@ export function ModelSetup() {
       const deps = await window.electronAPI.deps.getStatus()
       const modelStatus = await window.electronAPI.model.getStatus()
 
-      // Step 2: Download ffmpeg if missing
+      // Step 2: Check VC++ Runtime (Windows only)
+      if (deps.platform === 'win32' && !deps.vcRuntimeInstalled) {
+        setCurrentStep('vcruntime')
+        setVcRuntimeInfo({ downloadUrl: deps.vcRuntimeDownloadUrl })
+        return // Block setup until user installs VC++ Runtime
+      }
+
+      // Step 3: Download ffmpeg if missing
       if (!deps.ffmpegAvailable) {
         if (deps.canAutoDownloadFFmpeg) {
           setCurrentStep('ffmpeg')
           await window.electronAPI.deps.downloadFFmpeg()
         }
-        // If can't auto-download, skip — will use bundled or system ffmpeg
       }
 
-      // Step 3: Download whisper-cli if missing
+      // Step 4: Download whisper-cli if missing
       if (!deps.whisperAvailable) {
         if (deps.canAutoDownloadWhisper) {
           setCurrentStep('whisper')
           await window.electronAPI.deps.downloadWhisper()
+        } else {
+          // Can't auto-download (e.g. Linux ARM64) — show manual install instructions
+          setManualInstallInstructions(deps.whisperInstallInstructions)
+          setCurrentStep('whisper')
+          return
         }
-        // If can't auto-download (macOS/Linux), skip — user has it from brew/system
       }
 
       // Step 4: Download model if missing
@@ -140,6 +152,31 @@ export function ModelSetup() {
           <div style={{ ...styles.progressFill, width: `${totalProgress}%` }} />
         </div>
       </div>
+
+      {vcRuntimeInfo && (
+        <div style={styles.warningBox}>
+          <p style={styles.warningTitle}>{t.vcRuntimeRequired}</p>
+          <p style={styles.warningText}>{t.vcRuntimeRequiredDesc}</p>
+          <div style={styles.warningActions}>
+            <button style={styles.primaryBtn} onClick={() => window.open(vcRuntimeInfo.downloadUrl)}>
+              {t.downloadVcRuntime}
+            </button>
+            <button style={styles.retryBtn} onClick={() => { setVcRuntimeInfo(null); runSetup() }}>
+              {t.retry}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {manualInstallInstructions && (
+        <div style={styles.warningBox}>
+          <p style={styles.warningTitle}>{t.manualInstallRequired}</p>
+          <pre style={styles.codeBlock}>{manualInstallInstructions}</pre>
+          <button style={styles.retryBtn} onClick={() => { setManualInstallInstructions(null); runSetup() }}>
+            {t.retry}
+          </button>
+        </div>
+      )}
 
       {error && (
         <div style={styles.errorBox}>
@@ -309,5 +346,51 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'transparent',
     color: 'var(--color-foreground)',
     cursor: 'pointer'
+  },
+  warningBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    padding: 16,
+    borderRadius: 'var(--radius-lg)',
+    backgroundColor: 'rgba(255,159,10,0.08)',
+    maxWidth: 340,
+    width: '100%'
+  },
+  warningTitle: {
+    fontSize: 'var(--font-body)',
+    fontWeight: 600,
+    color: 'var(--color-foreground)'
+  },
+  warningText: {
+    fontSize: 'var(--font-caption)',
+    color: 'var(--color-secondary)',
+    textAlign: 'center' as const
+  },
+  warningActions: {
+    display: 'flex',
+    gap: 8,
+    marginTop: 4
+  },
+  primaryBtn: {
+    fontSize: 'var(--font-caption)',
+    padding: '6px 16px',
+    borderRadius: 'var(--radius-md)',
+    border: 'none',
+    backgroundColor: 'var(--color-foreground)',
+    color: 'var(--color-background)',
+    cursor: 'pointer'
+  },
+  codeBlock: {
+    fontSize: 'var(--font-caption)',
+    color: 'var(--color-foreground)',
+    backgroundColor: 'var(--color-surface)',
+    padding: 12,
+    borderRadius: 'var(--radius-md)',
+    whiteSpace: 'pre-wrap' as const,
+    fontFamily: 'monospace',
+    width: '100%'
   }
 }

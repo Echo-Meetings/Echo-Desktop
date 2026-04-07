@@ -257,7 +257,7 @@ export function TranscriptView({ transcript, mediaPath }: TranscriptViewProps) {
       const msg = err
         ? `Media error ${err.code}: ${err.message || 'Unknown'}`
         : 'Failed to load media'
-      console.error('[TranscriptView] Media error:', msg, 'src:', mediaUrl)
+      console.warn('[TranscriptView] Media error:', msg, 'src:', mediaUrl)
       setMediaError(msg)
       setVideoLoading(false)
     }

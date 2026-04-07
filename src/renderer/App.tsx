@@ -109,11 +109,12 @@ export default function App() {
       window.electronAPI.on('queue:sessionStarted', (sessionId) => {
         useAppStore.getState().updateSessionStatus(sessionId as string, 'processing')
       }),
-      window.electronAPI.on('queue:sessionProgress', (sessionId, progress, lang) => {
+      window.electronAPI.on('queue:sessionProgress', (sessionId, progress, lang, eta) => {
         useAppStore.getState().updateSessionProgress(
           sessionId as string,
           progress as number,
-          lang as string | null
+          lang as string | null,
+          eta as number | null
         )
       }),
       window.electronAPI.on('queue:sessionSegment', (sessionId, segments) => {
