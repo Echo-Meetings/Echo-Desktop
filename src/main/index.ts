@@ -3,6 +3,7 @@ import { join, extname } from 'path'
 import { pathToFileURL } from 'url'
 import { registerFileIpc } from './ipc/file'
 import { registerHistoryIpc } from './ipc/history'
+import { registerFoldersIpc } from './ipc/folders'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerExportIpc } from './ipc/export'
 import { registerTranscriptionIpc } from './ipc/transcription'
@@ -125,6 +126,7 @@ app.whenReady().then(() => {
   // Register all IPC handlers
   registerFileIpc()
   registerHistoryIpc()
+  registerFoldersIpc()
   registerSettingsIpc()
   registerExportIpc()
   registerTranscriptionIpc()

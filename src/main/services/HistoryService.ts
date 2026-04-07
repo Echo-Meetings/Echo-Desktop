@@ -28,6 +28,8 @@ export interface HistoryEntry {
   wordCount: number | null
   characterCount: number | null
   segments: HistorySegment[]
+  folderId: string | null
+  tagIds: string[]
 }
 
 export class HistoryService {
@@ -80,7 +82,9 @@ export class HistoryService {
         startTime: s.startTime,
         endTime: s.endTime,
         text: s.text
-      }))
+      })),
+      folderId: null,
+      tagIds: []
     }
 
     // Save JSON metadata
@@ -157,7 +161,7 @@ export class HistoryService {
   async loadAll(): Promise<HistoryEntry[]> {
     if (!existsSync(this.echoDir)) return []
 
-    const files = (await readdir(this.echoDir)).filter((f) => f.endsWith('.json'))
+    const files = (await readdir(this.echoDir)).filter((f) => f.endsWith('.json') && !f.startsWith('_'))
     const results = await Promise.all(
       files.map(async (file) => {
         try {
@@ -169,7 +173,11 @@ export class HistoryService {
       })
     )
 
-    const entries = results.filter((e): e is HistoryEntry => e !== null)
+    const entries = results.filter((e): e is HistoryEntry => e !== null).map((e) => ({
+      ...e,
+      folderId: e.folderId ?? null,
+      tagIds: Array.isArray(e.tagIds) ? e.tagIds : []
+    }))
     entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     return entries
   }
@@ -286,5 +294,66 @@ export class HistoryService {
    */
   getThumbnailSavePath(id: string): string {
     return join(this.echoDir, `${id}_thumb.jpg`)
+  }
+
+  /**
+   * Move entry to a folder.
+   */
+  moveToFolder(id: string, folderId: string | null): void {
+    const jsonPath = join(this.echoDir, `${id}.json`)
+    if (!existsSync(jsonPath)) return
+    try {
+      const data = readFileSync(jsonPath, 'utf-8')
+      const entry = JSON.parse(data) as HistoryEntry
+      entry.folderId = folderId
+      writeFileSync(jsonPath, JSON.stringify(entry, null, 2), 'utf-8')
+    } catch { /* ok */ }
+  }
+
+  /**
+   * Move multiple entries to a folder.
+   */
+  moveMultipleToFolder(ids: string[], folderId: string | null): void {
+    for (const id of ids) {
+      this.moveToFolder(id, folderId)
+    }
+  }
+
+  /**
+   * Set tags on an entry.
+   */
+  setTags(id: string, tagIds: string[]): void {
+    const jsonPath = join(this.echoDir, `${id}.json`)
+    if (!existsSync(jsonPath)) return
+    try {
+      const data = readFileSync(jsonPath, 'utf-8')
+      const entry = JSON.parse(data) as HistoryEntry
+      entry.tagIds = tagIds
+      writeFileSync(jsonPath, JSON.stringify(entry, null, 2), 'utf-8')
+    } catch { /* ok */ }
+  }
+
+  /**
+   * Remove a tag from all entries that have it.
+   */
+  async removeTagFromAll(tagId: string): Promise<void> {
+    const entries = await this.loadAll()
+    for (const entry of entries) {
+      if (entry.tagIds.includes(tagId)) {
+        this.setTags(entry.id, entry.tagIds.filter((t) => t !== tagId))
+      }
+    }
+  }
+
+  /**
+   * Move all entries in given folders to root (null folderId).
+   */
+  async unfoldEntries(folderIds: string[]): Promise<void> {
+    const entries = await this.loadAll()
+    for (const entry of entries) {
+      if (entry.folderId && folderIds.includes(entry.folderId)) {
+        this.moveToFolder(entry.id, null)
+      }
+    }
   }
 }
