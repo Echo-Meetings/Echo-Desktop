@@ -5,11 +5,28 @@ import { ModelManager } from '../services/ModelManager'
 import { WhisperBinaryManager } from '../services/WhisperBinaryManager'
 import { HistoryService } from '../services/HistoryService'
 import { TranscriptionQueue } from '../services/TranscriptionQueue'
+import type { PerformanceConfig } from '../services/TranscriptionService'
 
 const modelManager = new ModelManager()
 const whisperBinaryManager = new WhisperBinaryManager()
 const historyService = new HistoryService()
-const queue = new TranscriptionQueue(modelManager, whisperBinaryManager, historyService)
+
+function getPerformanceConfig(): PerformanceConfig {
+  try {
+    const settingsPath = join(app.getPath('userData'), 'settings.json')
+    if (existsSync(settingsPath)) {
+      const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
+      return {
+        accelerationMode: settings.accelerationMode || 'gpu',
+        flashAttention: settings.flashAttention !== false,
+        threadCount: settings.threadCount || 'auto'
+      }
+    }
+  } catch { /* ok */ }
+  return { accelerationMode: 'gpu', flashAttention: true, threadCount: 'auto' }
+}
+
+const queue = new TranscriptionQueue(modelManager, whisperBinaryManager, historyService, getPerformanceConfig)
 
 // Restore saved active model from settings
 try {

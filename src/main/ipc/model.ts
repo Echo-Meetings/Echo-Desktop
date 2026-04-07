@@ -3,6 +3,7 @@ import { statSync } from 'fs'
 import { locateWhisperCli, locateFFmpeg, locateFFprobe } from '../services/BinaryPaths'
 import { modelManager, whisperBinaryManager } from './transcription'
 import { getHardwareInfo, getOptimalThreadCount } from '../services/HardwareDetection'
+import { getRecommendedModelId } from '../services/ModelManager'
 
 function safeSend(channel: string, ...args: unknown[]): void {
   const win = BrowserWindow.getAllWindows()[0]
@@ -87,10 +88,19 @@ export function registerModelIpc(): void {
   // --- Hardware info ---
 
   ipcMain.handle('hardware:getInfo', async () => {
+    const info = getHardwareInfo()
+    const gpuBinarySupport = whisperBinaryManager.detectGpuSupport()
+    const gpuEffective = info.gpu.available && gpuBinarySupport !== 'none'
     return {
-      ...getHardwareInfo(),
-      optimalThreads: getOptimalThreadCount()
+      ...info,
+      optimalThreads: getOptimalThreadCount(gpuEffective),
+      gpuBinarySupport,
+      gpuEffective
     }
+  })
+
+  ipcMain.handle('hardware:getRecommendedModel', async () => {
+    return getRecommendedModelId(getHardwareInfo())
   })
 
   // --- Dependency status ---

@@ -30,7 +30,14 @@ export interface DiagnosticResult {
 // FFmpeg release from BtbN — reliable, up-to-date, includes ffmpeg + ffprobe
 const FFMPEG_WIN64_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
 
-const VC_REDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+const VC_REDIST_URLS: Record<string, string> = {
+  x64: 'https://aka.ms/vs/17/release/vc_redist.x64.exe',
+  arm64: 'https://aka.ms/vs/17/release/vc_redist.arm64.exe'
+}
+
+function getVcRedistUrl(): string {
+  return VC_REDIST_URLS[process.arch] || VC_REDIST_URLS['x64']
+}
 
 function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz'; binariesInDir: string } | null {
   const echoRelease = 'https://github.com/Echo-Meetings/Echo-Desktop/releases/latest/download'
@@ -117,7 +124,7 @@ export class WhisperBinaryManager {
     try {
       if (existsSync(gpuMarkerPath)) {
         const marker = readFileSync(gpuMarkerPath, 'utf-8').trim()
-        return marker === 'cpu'
+        return marker === 'cpu' || marker === 'none'
       }
     } catch { /* ok */ }
     // No GPU marker = old CPU-only download, needs GPU upgrade
@@ -226,8 +233,8 @@ export class WhisperBinaryManager {
     const variant = process.arch === 'arm64' ? 'arm64' : 'x64'
     try { writeFileSync(join(this.binDir, '.whisper-arch'), variant) } catch { /* ok */ }
 
-    // Write GPU variant marker
-    const gpuVariant = process.platform === 'darwin' ? 'metal' : 'vulkan'
+    // Write GPU marker — detect from extracted files (handles ARM64 Windows with no Vulkan)
+    const gpuVariant = this.detectGpuSupport()
     try { writeFileSync(join(this.binDir, '.whisper-gpu'), gpuVariant) } catch { /* ok */ }
 
     onProgress(1)
@@ -403,7 +410,7 @@ export class WhisperBinaryManager {
     const sys32 = 'C:\\Windows\\System32'
     const installed = existsSync(join(sys32, 'vcruntime140.dll')) &&
       existsSync(join(sys32, 'msvcp140.dll'))
-    return { installed, downloadUrl: VC_REDIST_URL }
+    return { installed, downloadUrl: getVcRedistUrl() }
   }
 
   private extractTarGz(archivePath: string, destDir: string): void {

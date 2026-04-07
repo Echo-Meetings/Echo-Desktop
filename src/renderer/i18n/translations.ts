@@ -224,6 +224,27 @@ export interface Translations {
   totalMemory: string
   threadsUsed: string
 
+  // Performance
+  performanceSection: string
+  gpuAcceleration: string
+  gpuName: string
+  gpuActive: string
+  gpuNotDetected: string
+  gpuCpuFallback: string
+  gpuBinaryNotSupported: string
+  accelerationMode: string
+  accelerationGpu: string
+  accelerationCpu: string
+  flashAttention: string
+  flashAttentionDesc: string
+  threadCount: string
+  threadCountAuto: string
+  threadCountManual: string
+  recommendedForHardware: string
+  vram: string
+  on: string
+  off: string
+
   // Close warning
   closeWarningTitle: string
   closeWarningMessage: string
@@ -293,8 +314,8 @@ export const translations: Record<UILocale, Translations> = {
     modelLabel: 'Speech model (~1.5 GB)',
     retry: 'Retry',
     vcRuntimeRequired: 'Visual C++ Runtime Required',
-    vcRuntimeRequiredDesc: 'Whisper CLI requires the Visual C++ Redistributable to run. Please install it and restart Echo.',
-    downloadVcRuntime: 'Download VC++ Runtime',
+    vcRuntimeRequiredDesc: 'Whisper CLI requires Microsoft Visual C++ 2015-2022 Redistributable. Download it from the official Microsoft website, install, and restart Echo.',
+    downloadVcRuntime: 'Download VC++ 2015-2022',
     manualInstallRequired: 'Whisper CLI must be installed manually on this platform.',
     welcomeTitle: 'Welcome to Echo',
     welcomeSubtitle: 'Private, offline transcription for your audio and video files. Everything stays on your device.',
@@ -419,6 +440,25 @@ export const translations: Record<UILocale, Translations> = {
     cpuCores: 'CPU Cores',
     totalMemory: 'Total Memory',
     threadsUsed: 'Threads Used',
+    performanceSection: 'Performance',
+    gpuAcceleration: 'GPU Acceleration',
+    gpuName: 'GPU',
+    gpuActive: 'Active',
+    gpuNotDetected: 'Not detected',
+    gpuCpuFallback: 'CPU fallback',
+    gpuBinaryNotSupported: 'Binary does not support GPU',
+    accelerationMode: 'Acceleration',
+    accelerationGpu: 'GPU',
+    accelerationCpu: 'CPU',
+    flashAttention: 'Flash Attention',
+    flashAttentionDesc: 'Speeds up GPU inference. Disable if you notice quality issues.',
+    threadCount: 'Threads',
+    threadCountAuto: 'Auto',
+    threadCountManual: 'Manual',
+    recommendedForHardware: 'Recommended',
+    vram: 'VRAM',
+    on: 'On',
+    off: 'Off',
     closeWarningTitle: 'Transcription in progress',
     closeWarningMessage: 'One or more files are still being transcribed.',
     closeWarningDetail: 'If you quit now, progress will be lost. Are you sure?',
@@ -486,8 +526,8 @@ export const translations: Record<UILocale, Translations> = {
     modelLabel: 'Модель речи (~1.5 ГБ)',
     retry: 'Повторить',
     vcRuntimeRequired: 'Требуется Visual C++ Runtime',
-    vcRuntimeRequiredDesc: 'Для работы Whisper CLI необходим Visual C++ Redistributable. Установите его и перезапустите Echo.',
-    downloadVcRuntime: 'Скачать VC++ Runtime',
+    vcRuntimeRequiredDesc: 'Для работы Whisper CLI необходим Microsoft Visual C++ 2015-2022 Redistributable. Скачайте с официального сайта Microsoft, установите и перезапустите Echo.',
+    downloadVcRuntime: 'Скачать VC++ 2015-2022',
     manualInstallRequired: 'На этой платформе Whisper CLI необходимо установить вручную.',
     welcomeTitle: 'Добро пожаловать в Echo',
     welcomeSubtitle: 'Приватная офлайн-транскрипция аудио и видео файлов. Все данные остаются на вашем устройстве.',
@@ -612,6 +652,25 @@ export const translations: Record<UILocale, Translations> = {
     cpuCores: 'Ядра CPU',
     totalMemory: 'Общая память',
     threadsUsed: 'Используемые потоки',
+    performanceSection: 'Производительность',
+    gpuAcceleration: 'Ускорение GPU',
+    gpuName: 'GPU',
+    gpuActive: 'Активен',
+    gpuNotDetected: 'Не обнаружен',
+    gpuCpuFallback: 'Режим CPU',
+    gpuBinaryNotSupported: 'Бинарник не поддерживает GPU',
+    accelerationMode: 'Ускорение',
+    accelerationGpu: 'GPU',
+    accelerationCpu: 'CPU',
+    flashAttention: 'Flash Attention',
+    flashAttentionDesc: 'Ускоряет работу GPU. Отключите, если заметите проблемы с качеством.',
+    threadCount: 'Потоки',
+    threadCountAuto: 'Авто',
+    threadCountManual: 'Вручную',
+    recommendedForHardware: 'Рекомендовано',
+    vram: 'VRAM',
+    on: 'Вкл',
+    off: 'Выкл',
     closeWarningTitle: 'Транскрипция в процессе',
     closeWarningMessage: 'Один или несколько файлов еще обрабатываются.',
     closeWarningDetail: 'Если вы закроете приложение, прогресс будет потерян. Вы уверены?',
@@ -679,8 +738,8 @@ export const translations: Record<UILocale, Translations> = {
     modelLabel: 'Sprachmodell (~1,5 GB)',
     retry: 'Wiederholen',
     vcRuntimeRequired: 'Visual C++ Runtime erforderlich',
-    vcRuntimeRequiredDesc: 'Whisper CLI benötigt Visual C++ Redistributable. Bitte installieren und Echo neu starten.',
-    downloadVcRuntime: 'VC++ Runtime herunterladen',
+    vcRuntimeRequiredDesc: 'Whisper CLI benötigt Microsoft Visual C++ 2015-2022 Redistributable. Laden Sie es von der offiziellen Microsoft-Website herunter, installieren und starten Sie Echo neu.',
+    downloadVcRuntime: 'VC++ 2015-2022 herunterladen',
     manualInstallRequired: 'Whisper CLI muss auf dieser Plattform manuell installiert werden.',
     welcomeTitle: 'Willkommen bei Echo',
     welcomeSubtitle: 'Private Offline-Transkription für Ihre Audio- und Videodateien. Alles bleibt auf Ihrem Gerät.',
@@ -805,6 +864,25 @@ export const translations: Record<UILocale, Translations> = {
     cpuCores: 'CPU-Kerne',
     totalMemory: 'Gesamtspeicher',
     threadsUsed: 'Verwendete Threads',
+    performanceSection: 'Leistung',
+    gpuAcceleration: 'GPU-Beschleunigung',
+    gpuName: 'GPU',
+    gpuActive: 'Aktiv',
+    gpuNotDetected: 'Nicht erkannt',
+    gpuCpuFallback: 'CPU-Modus',
+    gpuBinaryNotSupported: 'Binärdatei unterstützt keine GPU',
+    accelerationMode: 'Beschleunigung',
+    accelerationGpu: 'GPU',
+    accelerationCpu: 'CPU',
+    flashAttention: 'Flash Attention',
+    flashAttentionDesc: 'Beschleunigt GPU-Inferenz. Deaktivieren bei Qualitätsproblemen.',
+    threadCount: 'Threads',
+    threadCountAuto: 'Auto',
+    threadCountManual: 'Manuell',
+    recommendedForHardware: 'Empfohlen',
+    vram: 'VRAM',
+    on: 'An',
+    off: 'Aus',
     closeWarningTitle: 'Transkription läuft',
     closeWarningMessage: 'Eine oder mehrere Dateien werden noch transkribiert.',
     closeWarningDetail: 'Wenn Sie jetzt beenden, geht der Fortschritt verloren. Sind Sie sicher?',
@@ -872,8 +950,8 @@ export const translations: Record<UILocale, Translations> = {
     modelLabel: 'Modèle vocal (~1,5 Go)',
     retry: 'Réessayer',
     vcRuntimeRequired: 'Visual C++ Runtime requis',
-    vcRuntimeRequiredDesc: 'Whisper CLI nécessite Visual C++ Redistributable. Veuillez l\'installer et redémarrer Echo.',
-    downloadVcRuntime: 'Télécharger VC++ Runtime',
+    vcRuntimeRequiredDesc: 'Whisper CLI nécessite Microsoft Visual C++ 2015-2022 Redistributable. Téléchargez-le depuis le site officiel de Microsoft, installez et redémarrez Echo.',
+    downloadVcRuntime: 'Télécharger VC++ 2015-2022',
     manualInstallRequired: 'Whisper CLI doit être installé manuellement sur cette plateforme.',
     welcomeTitle: 'Bienvenue dans Echo',
     welcomeSubtitle: 'Transcription privée et hors ligne de vos fichiers audio et vidéo. Tout reste sur votre appareil.',
@@ -998,6 +1076,25 @@ export const translations: Record<UILocale, Translations> = {
     cpuCores: 'Cœurs CPU',
     totalMemory: 'Mémoire totale',
     threadsUsed: 'Threads utilisés',
+    performanceSection: 'Performance',
+    gpuAcceleration: 'Accélération GPU',
+    gpuName: 'GPU',
+    gpuActive: 'Actif',
+    gpuNotDetected: 'Non détecté',
+    gpuCpuFallback: 'Mode CPU',
+    gpuBinaryNotSupported: 'Le binaire ne supporte pas le GPU',
+    accelerationMode: 'Accélération',
+    accelerationGpu: 'GPU',
+    accelerationCpu: 'CPU',
+    flashAttention: 'Flash Attention',
+    flashAttentionDesc: 'Accélère l\'inférence GPU. Désactivez en cas de problèmes de qualité.',
+    threadCount: 'Threads',
+    threadCountAuto: 'Auto',
+    threadCountManual: 'Manuel',
+    recommendedForHardware: 'Recommandé',
+    vram: 'VRAM',
+    on: 'On',
+    off: 'Off',
     closeWarningTitle: 'Transcription en cours',
     closeWarningMessage: 'Un ou plusieurs fichiers sont encore en cours de transcription.',
     closeWarningDetail: 'Si vous quittez maintenant, la progression sera perdue. Êtes-vous sûr ?',

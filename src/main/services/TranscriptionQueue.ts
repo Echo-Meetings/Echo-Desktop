@@ -173,12 +173,9 @@ export class TranscriptionQueue {
               : `Could not process the file.`)
       }
 
-      // Configure performance settings before transcription
-      const perfConfig = this.getPerformanceConfig()
-      this.transcriptionService.setPerformanceConfig(perfConfig)
-      const gpuBinarySupport = this.whisperBinaryManager.detectGpuSupport()
-      const hwGpu = getHardwareInfo().gpu
-      this.transcriptionService.setGpuSupported(hwGpu.available && gpuBinarySupport !== 'none')
+      // Apply performance config before transcription
+      this.transcriptionService.setPerformanceConfig(this.getPerformanceConfig())
+      this.transcriptionService.setGpuBinarySupport(this.whisperBinaryManager.detectGpuSupport())
 
       // Transcribe
       const result = await this.transcriptionService.transcribe(
@@ -228,9 +225,13 @@ export class TranscriptionQueue {
 
         let userMessage: string
         if (!diag.vcRuntimeInstalled) {
-          userMessage = 'whisper-cli crashed: Visual C++ Redistributable is not installed. ' +
-            'Please download and install it from Microsoft, then restart the app. ' +
-            'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+          const arch = process.arch === 'arm64' ? 'ARM64' : 'x64'
+          const url = process.arch === 'arm64'
+            ? 'https://aka.ms/vs/17/release/vc_redist.arm64.exe'
+            : 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+          userMessage = `whisper-cli crashed: Visual C++ Redistributable (${arch}) is not installed. ` +
+            `Download "Microsoft Visual C++ 2015-2022 Redistributable (${arch})" from microsoft.com and restart the app. ` +
+            url
         } else if (diag.missingDlls.length > 0) {
           userMessage = `whisper-cli crashed: missing DLL files (${diag.missingDlls.join(', ')}). ` +
             'Please reinstall whisper-cli from Settings → System Diagnostics.'

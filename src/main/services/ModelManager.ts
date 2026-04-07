@@ -3,6 +3,7 @@ import { join } from 'path'
 import { app } from 'electron'
 import { get as httpsGet } from 'https'
 import { IncomingMessage } from 'http'
+import type { HardwareInfo } from './HardwareDetection'
 
 export interface ModelDefinition {
   id: string
@@ -57,6 +58,17 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
 ]
 
 const DEFAULT_MODEL_ID = 'large-v3-turbo'
+
+/**
+ * Recommend a model based on available hardware.
+ * Minimum acceptable: medium. Tiny and small excluded.
+ */
+export function getRecommendedModelId(info: HardwareInfo): string {
+  const ram = info.totalMemoryMB
+  if (ram < 6144) return 'medium'
+  if (ram < 8192) return 'large-v3-turbo-q5'
+  return 'large-v3-turbo'
+}
 
 export class ModelManager {
   private modelsDir: string

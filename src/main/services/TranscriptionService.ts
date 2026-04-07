@@ -6,6 +6,12 @@ import { randomUUID } from 'crypto'
 import { locateWhisperCli } from './BinaryPaths'
 import { getOptimalThreadCount } from './HardwareDetection'
 
+export interface PerformanceConfig {
+  accelerationMode: 'cpu' | 'gpu'
+  flashAttention: boolean
+  threadCount: 'auto' | number
+}
+
 export interface TranscriptSegment {
   id: string
   startTime: number
@@ -44,6 +50,16 @@ export class TranscriptionService {
   private cancelled = false
   private requestedLanguage: string | null = null
   private processExitPromise: Promise<void> | null = null
+  private performanceConfig: PerformanceConfig = { accelerationMode: 'gpu', flashAttention: true, threadCount: 'auto' }
+  private gpuBinarySupport: 'vulkan' | 'metal' | 'none' = 'none'
+
+  setPerformanceConfig(config: PerformanceConfig): void {
+    this.performanceConfig = config
+  }
+
+  setGpuBinarySupport(support: 'vulkan' | 'metal' | 'none'): void {
+    this.gpuBinarySupport = support
+  }
 
   /**
    * Transcribe an audio file using whisper.cpp CLI.
@@ -70,19 +86,34 @@ export class TranscriptionService {
     const outputBase = join(tmpdir(), `echo_whisper_${randomUUID()}`)
     const outputJson = `${outputBase}.json`
 
+    const hasGpu = this.performanceConfig.accelerationMode === 'gpu' && this.gpuBinarySupport !== 'none'
+    const threadCount = this.performanceConfig.threadCount === 'auto'
+      ? getOptimalThreadCount(hasGpu)
+      : this.performanceConfig.threadCount
+
     const args = [
       '-m', modelPath,
       '-f', wavPath,
       '-oj',                    // output JSON
       '-of', outputBase,        // output file base
       '-pp',                    // print progress
-      '-t', String(getOptimalThreadCount()), // threads (auto-detected from CPU cores)
+      '-t', String(threadCount),
       '-ml', '80',              // max segment length in characters
       '-sow',                   // split on word boundaries
       '-mc', '64',              // limited context: reduces hallucination loops while keeping quality
       '-et', '2.2',             // entropy threshold — flag low-confidence segments
       '-lpt', '-0.5'            // log probability threshold — reject garbage segments
     ]
+
+    // GPU: disable with -ng only when user explicitly selects CPU mode
+    if (this.performanceConfig.accelerationMode === 'cpu') {
+      args.push('-ng')
+    }
+
+    // Flash Attention: enabled by default for GPU acceleration
+    if (this.performanceConfig.flashAttention && hasGpu) {
+      args.push('-fa')
+    }
 
     if (language && language !== 'auto') {
       args.push('-l', language)
@@ -98,6 +129,10 @@ export class TranscriptionService {
     if (process.platform === 'win32') {
       const whisperDir = dirname(whisperPath)
       spawnEnv.PATH = `${whisperDir};${spawnEnv.PATH || ''}`
+    }
+    // macOS: set Metal shader search path
+    if (process.platform === 'darwin') {
+      spawnEnv.GGML_METAL_PATH_RESOURCES = dirname(whisperPath)
     }
 
     return new Promise((resolve, reject) => {

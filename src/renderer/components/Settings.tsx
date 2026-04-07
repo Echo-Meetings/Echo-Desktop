@@ -18,6 +18,7 @@ interface DiagnosticResult {
   whisperPath: string | null
   ffmpegPath: string | null
   whisperVersion: string
+  gpuBackend: 'vulkan' | 'metal' | 'none'
 }
 
 interface SettingsProps {
@@ -49,7 +50,14 @@ export function Settings({ onClose }: SettingsProps) {
   const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null)
   const [hardwareInfo, setHardwareInfo] = useState<{
     cpuCores: number; totalMemoryMB: number; optimalThreads: number
+    gpu: { available: boolean; backend: 'metal' | 'vulkan' | 'none'; name: string | null; vramMB: number | null }
+    gpuBinarySupport: 'vulkan' | 'metal' | 'none'
+    gpuEffective: boolean
   } | null>(null)
+  const [recommendedModel, setRecommendedModel] = useState<string | null>(null)
+  const [accelerationMode, setAccelerationMode] = useState<'gpu' | 'cpu'>('gpu')
+  const [flashAttention, setFlashAttention] = useState(true)
+  const [threadCount, setThreadCount] = useState<'auto' | number>('auto')
   const [logContent, setLogContent] = useState<string | null>(null)
   const [logLoading, setLogLoading] = useState(false)
 
@@ -88,6 +96,10 @@ export function Settings({ onClose }: SettingsProps) {
     window.electronAPI.model.getDownloadedModels().then(setDownloadedModels)
     window.electronAPI.model.getActiveModelId().then(setActiveModelId)
     window.electronAPI.hardware.getInfo().then(setHardwareInfo)
+    window.electronAPI.hardware.getRecommendedModel().then(setRecommendedModel)
+    window.electronAPI.settings.get('accelerationMode').then((v) => setAccelerationMode((v as 'gpu' | 'cpu') || 'gpu'))
+    window.electronAPI.settings.get('flashAttention').then((v) => setFlashAttention(v !== false))
+    window.electronAPI.settings.get('threadCount').then((v) => setThreadCount((v as 'auto' | number) || 'auto'))
   }, [])
 
   const handleLanguageChange = async (code: string) => {
@@ -169,6 +181,21 @@ export function Settings({ onClose }: SettingsProps) {
     const diag = await window.electronAPI.deps.diagnose()
     setDiagnostics(diag)
     setReinstalling(false)
+  }
+
+  const handleAccelerationChange = async (mode: 'gpu' | 'cpu') => {
+    setAccelerationMode(mode)
+    await window.electronAPI.settings.set('accelerationMode', mode)
+  }
+
+  const handleFlashAttentionChange = async (enabled: boolean) => {
+    setFlashAttention(enabled)
+    await window.electronAPI.settings.set('flashAttention', enabled)
+  }
+
+  const handleThreadCountChange = async (value: 'auto' | number) => {
+    setThreadCount(value)
+    await window.electronAPI.settings.set('threadCount', value)
   }
 
   const handleViewPrivacy = () => {
@@ -273,6 +300,9 @@ export function Settings({ onClose }: SettingsProps) {
                         <span style={{ fontSize: 'var(--font-body)', fontWeight: isActive ? 600 : 400 }}>
                           {modelLabel}
                         </span>
+                        {recommendedModel === model.id && (
+                          <span style={{ fontSize: 11, color: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', padding: '1px 6px', borderRadius: 4, fontWeight: 500 }}>{t.recommendedForHardware}</span>
+                        )}
                         {!model.multilingual && (
                           <span style={{ fontSize: 11, color: 'var(--color-secondary)', backgroundColor: 'var(--color-highlight)', padding: '1px 6px', borderRadius: 4 }}>EN</span>
                         )}
@@ -335,6 +365,153 @@ export function Settings({ onClose }: SettingsProps) {
               </>
             )}
 
+            {/* Performance */}
+            <div style={styles.subSectionHeader}>{t.performanceSection}</div>
+            <div style={styles.card}>
+              {/* GPU Info */}
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.gpuName}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={styles.rowValue}>
+                    {hardwareInfo?.gpu.name || t.gpuNotDetected}
+                  </span>
+                  {hardwareInfo?.gpu.available && (
+                    <span style={{
+                      fontSize: 11,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      fontWeight: 500,
+                      color: hardwareInfo.gpuEffective ? '#22c55e' : 'var(--color-secondary)',
+                      backgroundColor: hardwareInfo.gpuEffective ? 'rgba(34,197,94,0.1)' : 'var(--color-highlight)',
+                    }}>
+                      {hardwareInfo.gpuEffective
+                        ? `${hardwareInfo.gpu.backend === 'metal' ? 'Metal' : 'Vulkan'} — ${t.gpuActive}`
+                        : t.gpuBinaryNotSupported}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {hardwareInfo?.gpu.vramMB && (
+                <>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.cardRow}>
+                    <div style={styles.rowLabel}>{t.vram}</div>
+                    <div style={styles.rowValue}>{formatSize(hardwareInfo.gpu.vramMB * 1024 * 1024)}</div>
+                  </div>
+                </>
+              )}
+              <div style={styles.cardDivider} />
+
+              {/* Acceleration Mode */}
+              <div style={styles.cardRow}>
+                <div>
+                  <div style={styles.rowLabel}>{t.accelerationMode}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                  {(['gpu', 'cpu'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => handleAccelerationChange(mode)}
+                      style={{
+                        padding: '4px 14px',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: accelerationMode === mode ? 'var(--color-foreground)' : 'var(--color-surface)',
+                        color: accelerationMode === mode ? 'var(--color-background)' : 'var(--color-secondary)',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {mode === 'gpu' ? t.accelerationGpu : t.accelerationCpu}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={styles.cardDivider} />
+
+              {/* Flash Attention */}
+              <div style={styles.cardRow}>
+                <div>
+                  <div style={styles.rowLabel}>{t.flashAttention}</div>
+                  <div style={styles.rowDesc}>{t.flashAttentionDesc}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                  {[true, false].map((val) => (
+                    <button
+                      key={String(val)}
+                      onClick={() => handleFlashAttentionChange(val)}
+                      style={{
+                        padding: '4px 14px',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: flashAttention === val ? 'var(--color-foreground)' : 'var(--color-surface)',
+                        color: flashAttention === val ? 'var(--color-background)' : 'var(--color-secondary)',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {val ? t.on : t.off}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={styles.cardDivider} />
+
+              {/* Thread Count */}
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.threadCount}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                    <button
+                      onClick={() => handleThreadCountChange('auto')}
+                      style={{
+                        padding: '4px 14px',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: threadCount === 'auto' ? 'var(--color-foreground)' : 'var(--color-surface)',
+                        color: threadCount === 'auto' ? 'var(--color-background)' : 'var(--color-secondary)',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {t.threadCountAuto}
+                    </button>
+                    <button
+                      onClick={() => handleThreadCountChange(hardwareInfo?.optimalThreads || 4)}
+                      style={{
+                        padding: '4px 14px',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: threadCount !== 'auto' ? 'var(--color-foreground)' : 'var(--color-surface)',
+                        color: threadCount !== 'auto' ? 'var(--color-background)' : 'var(--color-secondary)',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {t.threadCountManual}
+                    </button>
+                  </div>
+                  {threadCount !== 'auto' && (
+                    <input
+                      type="range"
+                      min={1}
+                      max={hardwareInfo?.cpuCores || 8}
+                      value={threadCount}
+                      onChange={(e) => handleThreadCountChange(parseInt(e.target.value))}
+                      style={{ width: 80, accentColor: 'var(--color-foreground)' }}
+                    />
+                  )}
+                  <span style={{ fontSize: 12, color: 'var(--color-secondary)', minWidth: 16, textAlign: 'center' }}>
+                    {threadCount === 'auto' ? hardwareInfo?.optimalThreads || '—' : threadCount}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Diagnostics */}
             <div style={styles.subSectionHeader}>{t.diagnosticsSection}</div>
             <div style={styles.card}>
@@ -378,9 +555,12 @@ export function Settings({ onClose }: SettingsProps) {
                       </span>
                       {!diagnostics.vcRuntimeInstalled && (
                         <Button size="small" onClick={() => {
-                          window.electronAPI.update.openRelease('https://aka.ms/vs/17/release/vc_redist.x64.exe')
+                          const url = diagnostics?.arch === 'arm64'
+                            ? 'https://aka.ms/vs/17/release/vc_redist.arm64.exe'
+                            : 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+                          window.electronAPI.update.openRelease(url)
                         }}>
-                          {t.diagnosticsDownloadVcRuntime} ↗
+                          {t.diagnosticsDownloadVcRuntime} ({diagnostics?.arch === 'arm64' ? 'ARM64' : 'x64'}) ↗
                         </Button>
                       )}
                     </div>

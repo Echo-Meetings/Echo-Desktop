@@ -81,7 +81,11 @@ const electronAPI = {
     getInfo: (): Promise<{
       cpuCores: number; totalMemoryMB: number; freeMemoryMB: number
       platform: string; arch: string; optimalThreads: number
-    }> => ipcRenderer.invoke('hardware:getInfo')
+      gpu: { available: boolean; backend: 'metal' | 'vulkan' | 'none'; name: string | null; vramMB: number | null }
+      gpuBinarySupport: 'vulkan' | 'metal' | 'none'
+      gpuEffective: boolean
+    }> => ipcRenderer.invoke('hardware:getInfo'),
+    getRecommendedModel: (): Promise<string> => ipcRenderer.invoke('hardware:getRecommendedModel')
   },
 
   // Dependencies (whisper-cli, ffmpeg)
@@ -112,6 +116,7 @@ const electronAPI = {
       whisperPath: string | null
       ffmpegPath: string | null
       whisperVersion: string
+      gpuBackend: 'vulkan' | 'metal' | 'none'
     }> => ipcRenderer.invoke('deps:diagnose'),
     deleteWhisper: (): Promise<{ deleted: boolean }> => ipcRenderer.invoke('deps:deleteWhisper'),
     downloadWhisper: (): Promise<void> => ipcRenderer.invoke('deps:downloadWhisper'),
