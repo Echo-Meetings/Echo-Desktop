@@ -90,6 +90,63 @@ jobs:
           name: whisper-arm64
           path: whisper-bin-arm64-windows.zip
 
+  # Build whisper-cli universal binary for macOS (arm64 + x86_64)
+  build-whisper-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: v1.8.4
+
+      - name: Build universal binary
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DGGML_NATIVE=OFF \
+            -DGGML_METAL=OFF \
+            -DGGML_OPENMP=OFF
+          cmake --build build --config Release --target whisper-cli
+
+      - name: Sign and package
+        run: |
+          codesign --force --sign - build/bin/whisper-cli
+          tar czf whisper-bin-universal-macos.tar.gz -C build/bin whisper-cli
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-macos
+          path: whisper-bin-universal-macos.tar.gz
+
+  # Build whisper-cli for Linux x64
+  build-whisper-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: v1.8.4
+
+      - name: Build static binary
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_NATIVE=OFF \
+            -DGGML_OPENMP=OFF \
+            -DBUILD_SHARED_LIBS=OFF
+          cmake --build build --config Release --target whisper-cli
+
+      - name: Package
+        run: tar czf whisper-bin-x64-linux.tar.gz -C build/bin whisper-cli
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-linux
+          path: whisper-bin-x64-linux.tar.gz
+
   build-linux:
     runs-on: ubuntu-latest
     strategy:
@@ -119,7 +176,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [build-mac, build-windows, build-whisper-arm64, build-linux]
+    needs: [build-mac, build-windows, build-whisper-arm64, build-whisper-macos, build-whisper-linux, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -139,5 +196,6 @@ jobs:
             artifacts/**/*.zip
             artifacts/**/*.AppImage
             artifacts/**/*.deb
+            artifacts/**/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

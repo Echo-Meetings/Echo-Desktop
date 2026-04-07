@@ -27,16 +27,17 @@ export interface DiagnosticResult {
 // FFmpeg release from BtbN — reliable, up-to-date, includes ffmpeg + ffprobe
 const FFMPEG_WIN64_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'
 
+const VC_REDIST_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+
 function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz'; binariesInDir: string } | null {
+  const echoRelease = 'https://github.com/Echo-Meetings/Echo-Desktop/releases/latest/download'
+
   if (process.platform === 'win32') {
     if (process.arch === 'arm64') {
-      // Native ARM64 build cross-compiled in our CI — emulated x64/x86 builds crash with ACCESS_VIOLATION.
-      // The binary is uploaded as a release asset alongside app binaries.
-      // Use /latest redirect so it works regardless of app version.
       return {
-        url: 'https://github.com/Echo-Meetings/Echo-Desktop/releases/latest/download/whisper-bin-arm64-windows.zip',
+        url: `${echoRelease}/whisper-bin-arm64-windows.zip`,
         archiveType: 'zip',
-        binariesInDir: ''  // flat zip — files directly in root
+        binariesInDir: ''
       }
     }
     return {
@@ -45,6 +46,23 @@ function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz';
       binariesInDir: 'Release'
     }
   }
+
+  if (process.platform === 'darwin') {
+    return {
+      url: `${echoRelease}/whisper-bin-universal-macos.tar.gz`,
+      archiveType: 'tar.gz',
+      binariesInDir: ''
+    }
+  }
+
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    return {
+      url: `${echoRelease}/whisper-bin-x64-linux.tar.gz`,
+      archiveType: 'tar.gz',
+      binariesInDir: ''
+    }
+  }
+
   return null
 }
 
@@ -121,11 +139,16 @@ export class WhisperBinaryManager {
 
     if (!existsSync(this.binDir)) mkdirSync(this.binDir, { recursive: true })
 
-    const archivePath = join(this.binDir, 'whisper-download.zip')
+    const ext = info.archiveType === 'tar.gz' ? 'tar.gz' : 'zip'
+    const archivePath = join(this.binDir, `whisper-download.${ext}`)
     await this.downloadFile(info.url, archivePath, onProgress)
 
     onProgress(0.9)
-    this.extractZip(archivePath, this.binDir)
+    if (info.archiveType === 'tar.gz') {
+      this.extractTarGz(archivePath, this.binDir)
+    } else {
+      this.extractZip(archivePath, this.binDir)
+    }
     this.flattenDir(this.binDir, info.binariesInDir)
     try { unlinkSync(archivePath) } catch { /* ok */ }
 
@@ -294,6 +317,27 @@ export class WhisperBinaryManager {
 
       downloadWithRedirects(url)
     })
+  }
+
+  /**
+   * Check if VC++ Runtime is installed (Windows only).
+   */
+  checkVcRuntime(): { installed: boolean; downloadUrl: string } {
+    if (process.platform !== 'win32') {
+      return { installed: true, downloadUrl: '' }
+    }
+    const sys32 = 'C:\\Windows\\System32'
+    const installed = existsSync(join(sys32, 'vcruntime140.dll')) &&
+      existsSync(join(sys32, 'msvcp140.dll'))
+    return { installed, downloadUrl: VC_REDIST_URL }
+  }
+
+  private extractTarGz(archivePath: string, destDir: string): void {
+    execSync(`tar xzf "${archivePath}" -C "${destDir}"`)
+    // Remove macOS quarantine attributes so the binary can run
+    if (process.platform === 'darwin') {
+      try { execSync(`xattr -cr "${destDir}"`) } catch { /* ok */ }
+    }
   }
 
   private extractZip(archivePath: string, destDir: string): void {

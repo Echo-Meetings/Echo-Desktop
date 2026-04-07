@@ -54,6 +54,7 @@ export interface QueueSession {
   status: QueueSessionStatus
   progress: number            // 0-1
   detectedLanguage: string | null
+  etaSeconds: number | null   // estimated time remaining
   liveSegments: TranscriptSegment[]
   error: string | null
   result: TranscriptResult | null

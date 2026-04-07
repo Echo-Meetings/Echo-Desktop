@@ -25,7 +25,7 @@ interface AppStore {
   focusedSessionId: string | null
   enqueueFiles: (files: Array<{ sessionId: string; fileName: string; filePath: string }>) => void
   updateSessionStatus: (sessionId: string, status: QueueSessionStatus) => void
-  updateSessionProgress: (sessionId: string, progress: number, language: string | null) => void
+  updateSessionProgress: (sessionId: string, progress: number, language: string | null, etaSeconds?: number | null) => void
   appendSessionSegments: (sessionId: string, segments: TranscriptSegment[]) => void
   completeSession: (sessionId: string, result: TranscriptResult, mediaPath: string | null, entryId: string | null) => void
   failSession: (sessionId: string, error: string) => void
@@ -98,6 +98,7 @@ export const useAppStore = create<AppStore>((set) => ({
           status: 'queued' as const,
           progress: 0,
           detectedLanguage: null,
+          etaSeconds: null,
           liveSegments: [],
           error: null,
           result: null,
@@ -115,11 +116,11 @@ export const useAppStore = create<AppStore>((set) => ({
       )
     })),
 
-  updateSessionProgress: (sessionId, progress, language) =>
+  updateSessionProgress: (sessionId, progress, language, etaSeconds) =>
     set((state) => ({
       queueSessions: state.queueSessions.map((s) =>
         s.sessionId === sessionId
-          ? { ...s, progress, detectedLanguage: language || s.detectedLanguage }
+          ? { ...s, progress, detectedLanguage: language || s.detectedLanguage, etaSeconds: etaSeconds ?? s.etaSeconds }
           : s
       )
     })),

@@ -37,6 +37,16 @@ export function Settings({ onClose }: SettingsProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion?: string; releaseUrl?: string }>({})
   const [diagnostics, setDiagnostics] = useState<DiagnosticResult | null>(null)
   const [reinstalling, setReinstalling] = useState(false)
+  const [availableModels, setAvailableModels] = useState<Array<{
+    id: string; filename: string; sizeBytes: number; ramRequiredMB: number
+    labelKey: string; accuracy: string; speedMultiplier: number; multilingual: boolean
+  }>>([])
+  const [downloadedModels, setDownloadedModels] = useState<Record<string, boolean>>({})
+  const [activeModelId, setActiveModelId] = useState('large-v3-turbo')
+  const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null)
+  const [hardwareInfo, setHardwareInfo] = useState<{
+    cpuCores: number; totalMemoryMB: number; optimalThreads: number
+  } | null>(null)
 
   useEffect(() => {
     window.electronAPI.update.getVersion().then(setAppVersion)
@@ -61,6 +71,10 @@ export function Settings({ onClose }: SettingsProps) {
     window.electronAPI.settings.get('privacyConsent').then((v) => setPrivacyConsent(!!v))
     window.electronAPI.model.getSize().then(setModelInfo)
     window.electronAPI.deps.diagnose().then(setDiagnostics)
+    window.electronAPI.model.getAvailableModels().then(setAvailableModels)
+    window.electronAPI.model.getDownloadedModels().then(setDownloadedModels)
+    window.electronAPI.model.getActiveModelId().then(setActiveModelId)
+    window.electronAPI.hardware.getInfo().then(setHardwareInfo)
   }, [])
 
   const handleLanguageChange = async (code: string) => {
@@ -93,6 +107,47 @@ export function Settings({ onClose }: SettingsProps) {
     useAppStore.getState().setModelReady(false)
     setModelDeleting(false)
     onClose()
+  }
+
+  const handleSelectModel = async (modelId: string) => {
+    if (!downloadedModels[modelId]) {
+      // Download first
+      setDownloadingModelId(modelId)
+      await window.electronAPI.model.downloadById(modelId)
+      setDownloadingModelId(null)
+      const updated = await window.electronAPI.model.getDownloadedModels()
+      setDownloadedModels(updated)
+    }
+    setActiveModelId(modelId)
+    await window.electronAPI.model.setActiveModelId(modelId)
+    await window.electronAPI.settings.set('activeModel', modelId)
+  }
+
+  const handleDeleteSpecificModel = async (modelId: string) => {
+    if (!confirm(t.modelDeleteConfirm)) return
+    await window.electronAPI.model.delete(modelId)
+    const updated = await window.electronAPI.model.getDownloadedModels()
+    setDownloadedModels(updated)
+    // If the active model was deleted, switch to a downloaded one
+    if (modelId === activeModelId) {
+      const fallback = availableModels.find((m) => updated[m.id] && m.id !== modelId)
+      if (fallback) {
+        setActiveModelId(fallback.id)
+        await window.electronAPI.model.setActiveModelId(fallback.id)
+        await window.electronAPI.settings.set('activeModel', fallback.id)
+      }
+    }
+  }
+
+  const accuracyLabel = (acc: string): string => {
+    const map: Record<string, string> = {
+      'low': t.modelAccuracyLow,
+      'medium-low': t.modelAccuracyMediumLow,
+      'medium': t.modelAccuracyMedium,
+      'high': t.modelAccuracyHigh,
+      'very-high': t.modelAccuracyVeryHigh
+    }
+    return map[acc] || acc
   }
 
   const handleReinstallWhisper = async () => {
@@ -186,31 +241,96 @@ export function Settings({ onClose }: SettingsProps) {
           </div>
 
           {/* Section: AI Model */}
-          <div style={styles.sectionHeader}>{t.modelSection}</div>
+          <div style={styles.sectionHeader}>{t.modelPickerSection}</div>
           <div style={styles.card}>
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.modelName2}</div>
-              <div style={styles.rowValue}>whisper large-v3-turbo</div>
-            </div>
+            <div style={styles.rowDesc}>{t.modelPickerDesc}</div>
             <div style={styles.cardDivider} />
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.modelSize2}</div>
-              <div style={styles.rowValue}>{modelInfo ? formatSize(modelInfo.size) : '—'}</div>
-            </div>
-            <div style={styles.cardDivider} />
-            <div style={styles.cardRow}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={styles.rowLabel}>{t.modelPath}</div>
-                <div style={styles.storagePath}>{modelInfo?.path || '—'}</div>
-              </div>
-            </div>
-            <div style={styles.cardDivider} />
-            <div style={{ padding: '4px 0' }}>
-              <Button size="small" variant="destructive" onClick={handleDeleteModel} disabled={modelDeleting}>
-                {modelDeleting ? t.modelDeleting : t.deleteModel}
-              </Button>
-            </div>
+            {availableModels.map((model, idx) => {
+              const isActive = model.id === activeModelId
+              const isDownloaded = downloadedModels[model.id]
+              const isDownloading = downloadingModelId === model.id
+              const modelLabel = (t as Record<string, string>)[model.labelKey] || model.id
+              return (
+                <div key={model.id}>
+                  {idx > 0 && <div style={styles.cardDivider} />}
+                  <div style={{
+                    ...styles.cardRow,
+                    padding: '8px 0',
+                    cursor: isDownloading ? 'wait' : 'pointer',
+                    opacity: isDownloading ? 0.6 : 1
+                  }}
+                    onClick={() => !isDownloading && handleSelectModel(model.id)}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          border: isActive ? 'none' : '2px solid var(--color-border)',
+                          backgroundColor: isActive ? 'var(--color-foreground)' : 'transparent',
+                          flexShrink: 0
+                        }} />
+                        <span style={{ fontSize: 'var(--font-body)', fontWeight: isActive ? 600 : 400 }}>
+                          {modelLabel}
+                        </span>
+                        {!model.multilingual && (
+                          <span style={{ fontSize: 11, color: 'var(--color-secondary)', backgroundColor: 'var(--color-highlight)', padding: '1px 6px', borderRadius: 4 }}>EN</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, marginTop: 2, paddingLeft: 22, fontSize: 12, color: 'var(--color-secondary)' }}>
+                        <span>{formatSize(model.sizeBytes)}</span>
+                        <span>{accuracyLabel(model.accuracy)}</span>
+                        <span>{model.speedMultiplier}x {t.modelSpeedLabel.toLowerCase()}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      {isDownloading ? (
+                        <span style={{ fontSize: 12, color: 'var(--color-secondary)' }}>{t.modelDownloading}</span>
+                      ) : isDownloaded ? (
+                        <>
+                          <span style={{ fontSize: 12, color: '#22c55e' }}>{t.modelDownloaded}</span>
+                          {!isActive && (
+                            <Button size="small" variant="destructive" onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteSpecificModel(model.id)
+                            }}>
+                              {t.delete}
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--color-secondary)' }}>{t.modelNotDownloaded}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
+
+          {/* Section: Hardware */}
+          {hardwareInfo && (
+            <>
+              <div style={styles.sectionHeader}>{t.hardwareSection}</div>
+              <div style={styles.card}>
+                <div style={styles.cardRow}>
+                  <div style={styles.rowLabel}>{t.cpuCores}</div>
+                  <div style={styles.rowValue}>{hardwareInfo.cpuCores}</div>
+                </div>
+                <div style={styles.cardDivider} />
+                <div style={styles.cardRow}>
+                  <div style={styles.rowLabel}>{t.totalMemory}</div>
+                  <div style={styles.rowValue}>{formatSize(hardwareInfo.totalMemoryMB * 1024 * 1024)}</div>
+                </div>
+                <div style={styles.cardDivider} />
+                <div style={styles.cardRow}>
+                  <div style={styles.rowLabel}>{t.threadsUsed}</div>
+                  <div style={styles.rowValue}>{hardwareInfo.optimalThreads}</div>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Section: System Diagnostics */}
           <div style={styles.sectionHeader}>{t.diagnosticsSection}</div>

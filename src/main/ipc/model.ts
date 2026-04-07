@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { locateWhisperCli, locateFFmpeg, locateFFprobe } from '../services/BinaryPaths'
 import { modelManager, whisperBinaryManager } from './transcription'
+import { getHardwareInfo, getOptimalThreadCount } from '../services/HardwareDetection'
 
 export function registerModelIpc(): void {
   ipcMain.handle('model:getStatus', async () => {
@@ -31,8 +32,8 @@ export function registerModelIpc(): void {
     }
   })
 
-  ipcMain.handle('model:delete', async () => {
-    modelManager.deleteModel()
+  ipcMain.handle('model:delete', async (_event, modelId?: string) => {
+    modelManager.deleteModel(modelId)
     return { deleted: true }
   })
 
@@ -43,6 +44,51 @@ export function registerModelIpc(): void {
       return { size: stat.size, path: modelPath }
     } catch {
       return { size: 0, path: modelPath }
+    }
+  })
+
+  // --- Multi-model management ---
+
+  ipcMain.handle('model:getAvailableModels', async () => {
+    return modelManager.getAvailableModels()
+  })
+
+  ipcMain.handle('model:getDownloadedModels', async () => {
+    return modelManager.getDownloadedModels()
+  })
+
+  ipcMain.handle('model:getActiveModelId', async () => {
+    return modelManager.getActiveModelId()
+  })
+
+  ipcMain.handle('model:setActiveModelId', async (_event, modelId: string) => {
+    modelManager.setActiveModelId(modelId)
+  })
+
+  ipcMain.handle('model:downloadById', async (_event, modelId: string) => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return
+
+    try {
+      await modelManager.downloadModel((fraction) => {
+        win.webContents.send('model:downloadProgress', fraction)
+      }, modelId)
+      win.webContents.send('model:loaded')
+    } catch (err) {
+      console.error('Model download failed:', err)
+    }
+  })
+
+  ipcMain.handle('model:getModelsDiskUsage', async () => {
+    return modelManager.getModelsDiskUsage()
+  })
+
+  // --- Hardware info ---
+
+  ipcMain.handle('hardware:getInfo', async () => {
+    return {
+      ...getHardwareInfo(),
+      optimalThreads: getOptimalThreadCount()
     }
   })
 
@@ -59,7 +105,8 @@ export function registerModelIpc(): void {
       canAutoDownloadFFmpeg: whisperBinaryManager.canAutoDownloadFFmpeg(),
       whisperInstallInstructions: whisperBinaryManager.getInstallInstructions(),
       platform: process.platform,
-      arch: process.arch
+      arch: process.arch,
+      ...whisperBinaryManager.checkVcRuntime()
     }
   })
 
@@ -125,7 +172,8 @@ export function registerModelIpc(): void {
 
       if (!modelManager.isModelDownloaded()) {
         modelManager.deleteModel()
-        win.webContents.send('deps:status', 'Downloading AI model (~1.5 GB)...')
+        const activeModel = modelManager.getActiveModel()
+        win.webContents.send('deps:status', `Downloading AI model (~${Math.round(activeModel.sizeBytes / 1e9 * 10) / 10} GB)...`)
         await modelManager.downloadModel((fraction) => {
           win.webContents.send('model:downloadProgress', fraction)
         })

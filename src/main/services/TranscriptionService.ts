@@ -4,6 +4,7 @@ import { join, dirname } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { locateWhisperCli } from './BinaryPaths'
+import { getOptimalThreadCount } from './HardwareDetection'
 
 export interface TranscriptSegment {
   id: string
@@ -53,7 +54,7 @@ export class TranscriptionService {
     displayName: string,
     modelPath: string,
     language: string | null,
-    onProgress: (fraction: number, language: string | null) => void,
+    onProgress: (fraction: number, language: string | null, etaSeconds: number | null) => void,
     onSegment: (segments: TranscriptSegment[]) => void
   ): Promise<TranscriptResult> {
     this.requestedLanguage = language
@@ -75,7 +76,7 @@ export class TranscriptionService {
       '-oj',                    // output JSON
       '-of', outputBase,        // output file base
       '-pp',                    // print progress
-      '-t', '4',                // threads
+      '-t', String(getOptimalThreadCount()), // threads (auto-detected from CPU cores)
       '-ml', '80',              // max segment length in characters
       '-sow',                   // split on word boundaries
       '-mc', '64',              // limited context: reduces hallucination loops while keeping quality
@@ -122,14 +123,19 @@ export class TranscriptionService {
         const langMatch = text.match(/auto-detected language:\s*(\w+)/)
         if (langMatch) {
           detectedLang = langMatch[1]
-          onProgress(0.05, languageName(detectedLang))
+          onProgress(0.05, languageName(detectedLang), null)
         }
 
         // Parse progress: whisper.cpp outputs "progress = XX%"
         const progressMatch = text.match(/progress\s*=\s*(\d+)%/)
         if (progressMatch) {
           const pct = Math.min(parseInt(progressMatch[1], 10) / 100, 1.0)
-          onProgress(pct, detectedLang ? languageName(detectedLang) : null)
+          let eta: number | null = null
+          if (pct > 0.01) {
+            const elapsed = (Date.now() - startTime) / 1000
+            eta = Math.round(elapsed * (1 - pct) / pct)
+          }
+          onProgress(pct, detectedLang ? languageName(detectedLang) : null, eta)
         }
       })
 

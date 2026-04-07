@@ -1,59 +1,194 @@
-import { existsSync, mkdirSync, createWriteStream, statSync } from 'fs'
+import { existsSync, mkdirSync, createWriteStream, statSync, unlinkSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { get as httpsGet } from 'https'
 import { IncomingMessage } from 'http'
 
-// Large V3 Turbo — best quality, ~1.5GB, downloaded once
-const MODEL_FILENAME = 'ggml-large-v3-turbo.bin'
-const MODEL_URL = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_FILENAME}`
-const MODEL_SIZE_BYTES = 1_620_000_000 // ~1.6 GB
+export interface ModelDefinition {
+  id: string
+  filename: string
+  url: string
+  sizeBytes: number
+  /** Approximate RAM needed during inference */
+  ramRequiredMB: number
+  labelKey: string
+  accuracy: 'low' | 'medium-low' | 'medium' | 'high' | 'very-high'
+  /** Relative speed vs large-v3-turbo (higher = faster) */
+  speedMultiplier: number
+  multilingual: boolean
+}
+
+const HF_BASE = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main'
+
+export const MODEL_REGISTRY: ModelDefinition[] = [
+  {
+    id: 'tiny',
+    filename: 'ggml-tiny.bin',
+    url: `${HF_BASE}/ggml-tiny.bin`,
+    sizeBytes: 75_000_000,
+    ramRequiredMB: 400,
+    labelKey: 'modelTiny',
+    accuracy: 'low',
+    speedMultiplier: 10,
+    multilingual: true
+  },
+  {
+    id: 'base',
+    filename: 'ggml-base.bin',
+    url: `${HF_BASE}/ggml-base.bin`,
+    sizeBytes: 142_000_000,
+    ramRequiredMB: 500,
+    labelKey: 'modelBase',
+    accuracy: 'medium-low',
+    speedMultiplier: 7,
+    multilingual: true
+  },
+  {
+    id: 'small',
+    filename: 'ggml-small.bin',
+    url: `${HF_BASE}/ggml-small.bin`,
+    sizeBytes: 466_000_000,
+    ramRequiredMB: 1000,
+    labelKey: 'modelSmall',
+    accuracy: 'medium',
+    speedMultiplier: 4,
+    multilingual: true
+  },
+  {
+    id: 'medium',
+    filename: 'ggml-medium.bin',
+    url: `${HF_BASE}/ggml-medium.bin`,
+    sizeBytes: 1_530_000_000,
+    ramRequiredMB: 2500,
+    labelKey: 'modelMedium',
+    accuracy: 'high',
+    speedMultiplier: 2,
+    multilingual: true
+  },
+  {
+    id: 'large-v3-turbo',
+    filename: 'ggml-large-v3-turbo.bin',
+    url: `${HF_BASE}/ggml-large-v3-turbo.bin`,
+    sizeBytes: 1_620_000_000,
+    ramRequiredMB: 3000,
+    labelKey: 'modelLargeV3Turbo',
+    accuracy: 'very-high',
+    speedMultiplier: 1,
+    multilingual: true
+  },
+  {
+    id: 'large-v3-turbo-q5',
+    filename: 'ggml-large-v3-turbo-q5_0.bin',
+    url: `${HF_BASE}/ggml-large-v3-turbo-q5_0.bin`,
+    sizeBytes: 600_000_000,
+    ramRequiredMB: 1200,
+    labelKey: 'modelLargeV3TurboQ5',
+    accuracy: 'very-high',
+    speedMultiplier: 1.4,
+    multilingual: true
+  }
+]
+
+const DEFAULT_MODEL_ID = 'large-v3-turbo'
 
 export class ModelManager {
   private modelsDir: string
-  private modelPath: string
+  private activeModelId: string = DEFAULT_MODEL_ID
 
   constructor() {
     this.modelsDir = join(app.getPath('userData'), 'models')
-    this.modelPath = join(this.modelsDir, MODEL_FILENAME)
   }
 
-  getModelPath(): string {
-    return this.modelPath
+  getAvailableModels(): ModelDefinition[] {
+    return MODEL_REGISTRY
   }
 
-  isModelDownloaded(): boolean {
-    if (!existsSync(this.modelPath)) return false
-    // Check file is close to expected size (reject partial downloads)
+  getActiveModelId(): string {
+    return this.activeModelId
+  }
+
+  setActiveModelId(id: string): void {
+    const model = MODEL_REGISTRY.find((m) => m.id === id)
+    if (!model) return
+    this.activeModelId = id
+  }
+
+  getActiveModel(): ModelDefinition {
+    return MODEL_REGISTRY.find((m) => m.id === this.activeModelId) || MODEL_REGISTRY.find((m) => m.id === DEFAULT_MODEL_ID)!
+  }
+
+  getModelPath(modelId?: string): string {
+    const id = modelId || this.activeModelId
+    const model = MODEL_REGISTRY.find((m) => m.id === id)
+    if (!model) return join(this.modelsDir, MODEL_REGISTRY.find((m) => m.id === DEFAULT_MODEL_ID)!.filename)
+    return join(this.modelsDir, model.filename)
+  }
+
+  isModelDownloaded(modelId?: string): boolean {
+    const id = modelId || this.activeModelId
+    const model = MODEL_REGISTRY.find((m) => m.id === id)
+    if (!model) return false
+
+    const modelPath = join(this.modelsDir, model.filename)
+    if (!existsSync(modelPath)) return false
     try {
-      const stat = statSync(this.modelPath)
-      // Must be at least 90% of expected size to be considered complete
-      return stat.size >= MODEL_SIZE_BYTES * 0.9
+      const stat = statSync(modelPath)
+      return stat.size >= model.sizeBytes * 0.9
     } catch {
       return false
     }
   }
 
   /**
-   * Delete a corrupted/partial model so it will be re-downloaded.
+   * Get download status for all models (which ones are downloaded).
    */
-  deleteModel(): void {
+  getDownloadedModels(): Record<string, boolean> {
+    const result: Record<string, boolean> = {}
+    for (const model of MODEL_REGISTRY) {
+      result[model.id] = this.isModelDownloaded(model.id)
+    }
+    return result
+  }
+
+  deleteModel(modelId?: string): void {
+    const id = modelId || this.activeModelId
+    const model = MODEL_REGISTRY.find((m) => m.id === id)
+    if (!model) return
+    const modelPath = join(this.modelsDir, model.filename)
     try {
-      if (existsSync(this.modelPath)) {
-        require('fs').unlinkSync(this.modelPath)
-      }
+      if (existsSync(modelPath)) unlinkSync(modelPath)
     } catch { /* ignore */ }
   }
 
-  async downloadModel(onProgress: (fraction: number) => void): Promise<string> {
-    if (this.isModelDownloaded()) {
+  /**
+   * Get total disk usage of all downloaded models.
+   */
+  getModelsDiskUsage(): number {
+    if (!existsSync(this.modelsDir)) return 0
+    let total = 0
+    try {
+      for (const file of readdirSync(this.modelsDir)) {
+        try { total += statSync(join(this.modelsDir, file)).size } catch { /* ok */ }
+      }
+    } catch { /* ok */ }
+    return total
+  }
+
+  async downloadModel(onProgress: (fraction: number) => void, modelId?: string): Promise<string> {
+    const id = modelId || this.activeModelId
+    const model = MODEL_REGISTRY.find((m) => m.id === id)
+    if (!model) throw new Error(`Unknown model: ${id}`)
+
+    if (this.isModelDownloaded(id)) {
       onProgress(1)
-      return this.modelPath
+      return this.getModelPath(id)
     }
 
     if (!existsSync(this.modelsDir)) {
       mkdirSync(this.modelsDir, { recursive: true })
     }
+
+    const modelPath = join(this.modelsDir, model.filename)
 
     return new Promise((resolve, reject) => {
       const downloadWithRedirects = (url: string, redirectCount = 0): void => {
@@ -63,7 +198,6 @@ export class ModelManager {
         }
 
         httpsGet(url, (response: IncomingMessage) => {
-          // Handle redirects (HuggingFace uses them)
           if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
             downloadWithRedirects(response.headers.location, redirectCount + 1)
             return
@@ -74,10 +208,10 @@ export class ModelManager {
             return
           }
 
-          const totalBytes = parseInt(response.headers['content-length'] || '0', 10) || MODEL_SIZE_BYTES
+          const totalBytes = parseInt(response.headers['content-length'] || '0', 10) || model.sizeBytes
           let downloadedBytes = 0
 
-          const fileStream = createWriteStream(this.modelPath)
+          const fileStream = createWriteStream(modelPath)
 
           response.on('data', (chunk: Buffer) => {
             downloadedBytes += chunk.length
@@ -88,17 +222,16 @@ export class ModelManager {
 
           fileStream.on('finish', () => {
             fileStream.close()
-            // Verify download is complete (not truncated)
             try {
-              const finalSize = statSync(this.modelPath).size
-              if (finalSize < MODEL_SIZE_BYTES * 0.9) {
-                try { require('fs').unlinkSync(this.modelPath) } catch { /* ok */ }
-                reject(new Error(`Model download incomplete: got ${Math.round(finalSize / 1e6)}MB, expected ~${Math.round(MODEL_SIZE_BYTES / 1e6)}MB`))
+              const finalSize = statSync(modelPath).size
+              if (finalSize < model.sizeBytes * 0.9) {
+                try { unlinkSync(modelPath) } catch { /* ok */ }
+                reject(new Error(`Model download incomplete: got ${Math.round(finalSize / 1e6)}MB, expected ~${Math.round(model.sizeBytes / 1e6)}MB`))
                 return
               }
             } catch { /* stat failed, let it pass */ }
             onProgress(1)
-            resolve(this.modelPath)
+            resolve(modelPath)
           })
 
           fileStream.on('error', (err) => {
@@ -108,7 +241,7 @@ export class ModelManager {
         }).on('error', reject)
       }
 
-      downloadWithRedirects(MODEL_URL)
+      downloadWithRedirects(model.url)
     })
   }
 }

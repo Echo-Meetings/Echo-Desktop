@@ -39,7 +39,8 @@ const store = new SettingsStore({
   languageOverride: 'auto',
   hasCompletedOnboarding: false,
   privacyConsent: false,
-  storageDirectory: ''
+  storageDirectory: '',
+  activeModel: 'large-v3-turbo'
 })
 
 export function registerSettingsIpc(): void {
