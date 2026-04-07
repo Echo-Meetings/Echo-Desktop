@@ -73,7 +73,7 @@ jobs:
 
       - name: Cross-compile for ARM64 with Clang
         run: |
-          cmake -B build -T ClangCL -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_OPENMP=OFF
+          cmake -B build -T ClangCL -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_OPENMP=OFF -DGGML_NATIVE=OFF
           cmake --build build --config Release --target whisper-cli
 
       - name: Package binaries
