@@ -275,6 +275,11 @@ export class WhisperBinaryManager {
     this.flattenDir(this.binDir, info.binariesInDir)
     try { unlinkSync(archivePath) } catch { /* ok */ }
 
+    // macOS: fix dylib paths in the downloaded binary
+    if (process.platform === 'darwin') {
+      this.fixMacOsDylibPaths(this.binDir)
+    }
+
     const whisperPath = locateWhisperCli()
     if (!whisperPath) throw new Error('whisper-cli download succeeded but binary not found after extraction')
 
@@ -476,6 +481,69 @@ export class WhisperBinaryManager {
     } else {
       execSync(`unzip -o "${archivePath}" -d "${destDir}"`)
     }
+  }
+
+  /**
+   * Fix absolute dylib paths in whisper-cli on macOS.
+   * Rewrites hardcoded CI build paths to @executable_path/ so dylibs
+   * are found next to the binary at runtime.
+   */
+  private fixMacOsDylibPaths(binDir: string): void {
+    try {
+      const whisperBin = join(binDir, 'whisper-cli')
+      if (!existsSync(whisperBin)) return
+
+      // Get all targets: whisper-cli + any dylibs
+      const files = readdirSync(binDir)
+      const targets = ['whisper-cli', ...files.filter(f => f.endsWith('.dylib'))]
+
+      for (const target of targets) {
+        const targetPath = join(binDir, target)
+        if (!existsSync(targetPath)) continue
+
+        // Read dylib references
+        let otoolOutput = ''
+        try {
+          otoolOutput = execSync(`otool -L "${targetPath}" 2>/dev/null`, { encoding: 'utf-8' })
+        } catch { continue }
+
+        // Parse each reference line
+        for (const line of otoolOutput.split('\n')) {
+          const match = line.trim().match(/^(.+\.dylib)\s/)
+          if (!match) continue
+          const ref = match[1]
+          const base = ref.split('/').pop()!
+
+          // Skip system libs and already-fixed refs
+          if (ref.startsWith('/usr/lib/') || ref.startsWith('/System/') || ref.startsWith('@')) continue
+
+          // Rewrite to @executable_path/basename
+          try {
+            execSync(`install_name_tool -change "${ref}" "@executable_path/${base}" "${targetPath}" 2>/dev/null`)
+          } catch { /* ok */ }
+        }
+
+        // Fix dylib's own id
+        if (target.endsWith('.dylib')) {
+          try {
+            execSync(`install_name_tool -id "@executable_path/${target}" "${targetPath}" 2>/dev/null`)
+          } catch { /* ok */ }
+        }
+      }
+
+      // Add rpath as fallback
+      try {
+        execSync(`install_name_tool -add_rpath @executable_path "${whisperBin}" 2>/dev/null`)
+      } catch { /* ok — may already exist */ }
+
+      // Re-sign after modification
+      try {
+        execSync(`codesign --force --sign - "${whisperBin}" 2>/dev/null`)
+        for (const f of files.filter(f => f.endsWith('.dylib'))) {
+          execSync(`codesign --force --sign - "${join(binDir, f)}" 2>/dev/null`)
+        }
+      } catch { /* ok */ }
+    } catch { /* non-fatal — the binary may still work */ }
   }
 
   private flattenDir(destDir: string, subDirName: string): void {
