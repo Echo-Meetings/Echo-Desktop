@@ -232,6 +232,12 @@ export interface Translations {
   gpuNotDetected: string
   gpuCpuFallback: string
   gpuBinaryNotSupported: string
+  gpuVendor: string
+  gpuDriverVersion: string
+  gpuBackendLabel: string
+  gpuCudaAvailable: string
+  gpuCudaNotAvailable: string
+  gpuRecommendedBackend: string
   accelerationMode: string
   accelerationGpu: string
   accelerationCpu: string
@@ -447,6 +453,12 @@ export const translations: Record<UILocale, Translations> = {
     gpuNotDetected: 'Not detected',
     gpuCpuFallback: 'CPU fallback',
     gpuBinaryNotSupported: 'Binary does not support GPU',
+    gpuVendor: 'Vendor',
+    gpuDriverVersion: 'Driver',
+    gpuBackendLabel: 'Backend',
+    gpuCudaAvailable: 'CUDA available',
+    gpuCudaNotAvailable: 'CUDA not available',
+    gpuRecommendedBackend: 'Recommended',
     accelerationMode: 'Acceleration',
     accelerationGpu: 'GPU',
     accelerationCpu: 'CPU',
@@ -659,6 +671,12 @@ export const translations: Record<UILocale, Translations> = {
     gpuNotDetected: 'Не обнаружен',
     gpuCpuFallback: 'Режим CPU',
     gpuBinaryNotSupported: 'Бинарник не поддерживает GPU',
+    gpuVendor: 'Производитель',
+    gpuDriverVersion: 'Драйвер',
+    gpuBackendLabel: 'Бэкенд',
+    gpuCudaAvailable: 'CUDA доступен',
+    gpuCudaNotAvailable: 'CUDA недоступен',
+    gpuRecommendedBackend: 'Рекомендуемый',
     accelerationMode: 'Ускорение',
     accelerationGpu: 'GPU',
     accelerationCpu: 'CPU',
@@ -871,6 +889,12 @@ export const translations: Record<UILocale, Translations> = {
     gpuNotDetected: 'Nicht erkannt',
     gpuCpuFallback: 'CPU-Modus',
     gpuBinaryNotSupported: 'Binärdatei unterstützt keine GPU',
+    gpuVendor: 'Hersteller',
+    gpuDriverVersion: 'Treiber',
+    gpuBackendLabel: 'Backend',
+    gpuCudaAvailable: 'CUDA verfügbar',
+    gpuCudaNotAvailable: 'CUDA nicht verfügbar',
+    gpuRecommendedBackend: 'Empfohlen',
     accelerationMode: 'Beschleunigung',
     accelerationGpu: 'GPU',
     accelerationCpu: 'CPU',
@@ -1083,6 +1107,12 @@ export const translations: Record<UILocale, Translations> = {
     gpuNotDetected: 'Non détecté',
     gpuCpuFallback: 'Mode CPU',
     gpuBinaryNotSupported: 'Le binaire ne supporte pas le GPU',
+    gpuVendor: 'Fabricant',
+    gpuDriverVersion: 'Pilote',
+    gpuBackendLabel: 'Backend',
+    gpuCudaAvailable: 'CUDA disponible',
+    gpuCudaNotAvailable: 'CUDA non disponible',
+    gpuRecommendedBackend: 'Recommandé',
     accelerationMode: 'Accélération',
     accelerationGpu: 'GPU',
     accelerationCpu: 'CPU',

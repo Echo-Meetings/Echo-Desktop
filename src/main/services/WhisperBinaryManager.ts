@@ -4,6 +4,7 @@ import { get as httpsGet } from 'https'
 import { IncomingMessage } from 'http'
 import { execSync } from 'child_process'
 import { locateWhisperCli, locateFFmpeg, locateFFprobe, getWhisperBinDir } from './BinaryPaths'
+import { getHardwareInfo } from './HardwareDetection'
 
 const WHISPER_VERSION = '1.8.4'
 
@@ -11,6 +12,8 @@ const WHISPER_VERSION = '1.8.4'
 const WHISPER_EXPECTED_DLLS = ['whisper.dll', 'ggml.dll', 'ggml-base.dll', 'ggml-cpu.dll']
 /** Optional GPU DLLs — present when built with Vulkan support */
 const WHISPER_GPU_DLLS = ['ggml-vulkan.dll']
+/** Optional CUDA DLLs — present when built with CUDA support */
+const WHISPER_CUDA_DLLS = ['ggml-cuda.dll']
 
 export interface DiagnosticResult {
   ok: boolean
@@ -24,7 +27,7 @@ export interface DiagnosticResult {
   whisperPath: string | null
   ffmpegPath: string | null
   whisperVersion: string
-  gpuBackend: 'vulkan' | 'metal' | 'none'
+  gpuBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
 }
 
 // FFmpeg release from BtbN — reliable, up-to-date, includes ffmpeg + ffprobe
@@ -39,7 +42,7 @@ function getVcRedistUrl(): string {
   return VC_REDIST_URLS[process.arch] || VC_REDIST_URLS['x64']
 }
 
-function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz'; binariesInDir: string } | null {
+function getWhisperDownloadInfo(preferCuda: boolean = false): { url: string; archiveType: 'zip' | 'tar.gz'; binariesInDir: string } | null {
   const echoRelease = 'https://github.com/Echo-Meetings/Echo-Desktop/releases/latest/download'
 
   if (process.platform === 'win32') {
@@ -51,7 +54,9 @@ function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz';
       }
     }
     return {
-      url: `${echoRelease}/whisper-bin-x64-windows.zip`,
+      url: preferCuda
+        ? `${echoRelease}/whisper-bin-x64-cuda-windows.zip`
+        : `${echoRelease}/whisper-bin-x64-windows.zip`,
       archiveType: 'zip',
       binariesInDir: ''
     }
@@ -67,7 +72,9 @@ function getWhisperDownloadInfo(): { url: string; archiveType: 'zip' | 'tar.gz';
 
   if (process.platform === 'linux' && process.arch === 'x64') {
     return {
-      url: `${echoRelease}/whisper-bin-x64-linux.tar.gz`,
+      url: preferCuda
+        ? `${echoRelease}/whisper-bin-x64-cuda-linux.tar.gz`
+        : `${echoRelease}/whisper-bin-x64-linux.tar.gz`,
       archiveType: 'tar.gz',
       binariesInDir: ''
     }
@@ -133,8 +140,9 @@ export class WhisperBinaryManager {
 
   /**
    * Detect what GPU backend the installed whisper binary supports.
+   * Checks for CUDA first (highest priority for NVIDIA), then Vulkan, then Metal.
    */
-  detectGpuSupport(): 'vulkan' | 'metal' | 'none' {
+  detectGpuSupport(): 'cuda' | 'vulkan' | 'metal' | 'none' {
     const whisperPath = locateWhisperCli()
     if (!whisperPath) return 'none'
 
@@ -159,6 +167,10 @@ export class WhisperBinaryManager {
     }
 
     if (process.platform === 'win32') {
+      // CUDA: check for ggml-cuda.dll (higher priority than Vulkan)
+      for (const dll of WHISPER_CUDA_DLLS) {
+        if (existsSync(join(whisperDir, dll))) return 'cuda'
+      }
       // Vulkan: check for ggml-vulkan.dll
       for (const dll of WHISPER_GPU_DLLS) {
         if (existsSync(join(whisperDir, dll))) return 'vulkan'
@@ -167,13 +179,36 @@ export class WhisperBinaryManager {
     }
 
     if (process.platform === 'linux') {
-      // Vulkan: check for libggml-vulkan.so
       const files = readdirSync(whisperDir)
+      // CUDA: check for libggml-cuda.so
+      if (files.some(f => f.includes('ggml-cuda'))) return 'cuda'
+      // Vulkan: check for libggml-vulkan.so
       if (files.some(f => f.includes('ggml-vulkan'))) return 'vulkan'
       return 'none'
     }
 
     return 'none'
+  }
+
+  /**
+   * Check if NVIDIA GPU with CUDA is available but binary only has Vulkan.
+   * Returns true if we should upgrade to the CUDA-optimized build.
+   */
+  needsCudaUpgrade(): boolean {
+    const whisperPath = locateWhisperCli()
+    if (!whisperPath) return false
+
+    // Only applicable on Windows/Linux x64
+    if (process.platform === 'darwin') return false
+    if (process.arch !== 'x64') return false
+
+    const gpu = getHardwareInfo().gpu
+    if (gpu.vendor !== 'nvidia' || !gpu.cudaAvailable) return false
+
+    // Already has CUDA build
+    if (this.detectGpuSupport() === 'cuda') return false
+
+    return true
   }
 
   getInstallInstructions(): string {
@@ -190,12 +225,24 @@ export class WhisperBinaryManager {
     return getWhisperDownloadInfo() !== null
   }
 
+  /**
+   * Check if CUDA build should be preferred for download.
+   * True when NVIDIA GPU with CUDA support is detected.
+   */
+  private shouldPreferCuda(): boolean {
+    try {
+      const gpu = getHardwareInfo().gpu
+      return gpu.vendor === 'nvidia' && gpu.cudaAvailable
+    } catch { return false }
+  }
+
   canAutoDownloadFFmpeg(): boolean {
     return process.platform === 'win32'
   }
 
   /**
-   * Download whisper-cli binary for Windows.
+   * Download whisper-cli binary.
+   * Automatically selects CUDA build for NVIDIA GPUs when available.
    */
   async download(onProgress: (fraction: number) => void, force = false): Promise<string> {
     if (!force) {
@@ -208,7 +255,9 @@ export class WhisperBinaryManager {
     // Delete old binary before re-downloading (only when force=true)
     if (force) this.deleteWhisperBinary()
 
-    const info = getWhisperDownloadInfo()
+    // Prefer CUDA build for NVIDIA GPUs
+    const preferCuda = this.shouldPreferCuda()
+    const info = getWhisperDownloadInfo(preferCuda)
     if (!info) throw new Error(this.getInstallInstructions())
 
     if (!existsSync(this.binDir)) mkdirSync(this.binDir, { recursive: true })
@@ -355,7 +404,7 @@ export class WhisperBinaryManager {
     try {
       const files = readdirSync(binDir)
       for (const f of files) {
-        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f === '.whisper-arch' || f === '.whisper-gpu' || f.endsWith('.metal') || f.endsWith('.metallib')) {
+        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f.endsWith('.so') || f === '.whisper-arch' || f === '.whisper-gpu' || f.endsWith('.metal') || f.endsWith('.metallib')) {
           try { unlinkSync(join(binDir, f)) } catch { /* ok */ }
         }
       }

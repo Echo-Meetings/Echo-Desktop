@@ -81,9 +81,15 @@ const electronAPI = {
     getInfo: (): Promise<{
       cpuCores: number; totalMemoryMB: number; freeMemoryMB: number
       platform: string; arch: string; optimalThreads: number
-      gpu: { available: boolean; backend: 'metal' | 'vulkan' | 'none'; name: string | null; vramMB: number | null }
-      gpuBinarySupport: 'vulkan' | 'metal' | 'none'
+      gpu: {
+        available: boolean; backend: 'cuda' | 'metal' | 'vulkan' | 'none'
+        vendor: 'nvidia' | 'amd' | 'intel' | 'apple' | 'unknown'
+        name: string | null; vramMB: number | null
+        cudaAvailable: boolean; vulkanAvailable: boolean; driverVersion: string | null
+      }
+      gpuBinarySupport: 'cuda' | 'vulkan' | 'metal' | 'none'
       gpuEffective: boolean
+      recommendedBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
     }> => ipcRenderer.invoke('hardware:getInfo'),
     getRecommendedModel: (): Promise<string> => ipcRenderer.invoke('hardware:getRecommendedModel')
   },
@@ -116,7 +122,7 @@ const electronAPI = {
       whisperPath: string | null
       ffmpegPath: string | null
       whisperVersion: string
-      gpuBackend: 'vulkan' | 'metal' | 'none'
+      gpuBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
     }> => ipcRenderer.invoke('deps:diagnose'),
     deleteWhisper: (): Promise<{ deleted: boolean }> => ipcRenderer.invoke('deps:deleteWhisper'),
     downloadWhisper: (): Promise<void> => ipcRenderer.invoke('deps:downloadWhisper'),
@@ -184,6 +190,7 @@ const electronAPI = {
       'queue:sessionError',
       'queue:sessionRemoved',
       'queue:memoryWarning',
+      'queue:gpuError',
       // Legacy transcription events
       'transcription:progress',
       'transcription:segment',

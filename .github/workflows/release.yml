@@ -129,6 +129,77 @@ jobs:
           name: whisper-arm64
           path: whisper-bin-arm64-windows.zip
 
+  # Build whisper.cpp for x64 Windows with CUDA GPU acceleration (NVIDIA)
+  build-whisper-x64-cuda:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: v1.8.4
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: '12.6.3'
+          method: 'network'
+
+      - name: Build with CUDA
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_CUDA=ON -DGGML_NATIVE=OFF
+          cmake --build build --config Release --target whisper-cli
+
+      - name: Package binaries
+        run: |
+          New-Item -ItemType Directory -Path package -Force
+          Copy-Item build\bin\Release\whisper-cli.exe package\
+          Get-ChildItem build\bin\Release\*.dll | Copy-Item -Destination package\
+          Compress-Archive -Path package\* -DestinationPath whisper-bin-x64-cuda-windows.zip
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-x64-cuda
+          path: whisper-bin-x64-cuda-windows.zip
+
+  # Build whisper.cpp for x64 Linux with CUDA GPU acceleration (NVIDIA)
+  build-whisper-linux-cuda:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: v1.8.4
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: '12.6.3'
+          method: 'network'
+
+      - name: Build with CUDA GPU acceleration
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_NATIVE=OFF \
+            -DGGML_OPENMP=OFF \
+            -DGGML_CUDA=ON \
+            -DBUILD_SHARED_LIBS=ON
+          cmake --build build --config Release --target whisper-cli
+
+      - name: Package
+        run: |
+          cd build/bin
+          tar czf ../../whisper-bin-x64-cuda-linux.tar.gz whisper-cli lib*.so* 2>/dev/null || tar czf ../../whisper-bin-x64-cuda-linux.tar.gz whisper-cli
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-linux-cuda
+          path: whisper-bin-x64-cuda-linux.tar.gz
+
   # Build whisper-cli universal binary for macOS with Metal GPU acceleration
   build-whisper-macos:
     runs-on: macos-latest
@@ -227,7 +298,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [build-mac, build-windows, build-whisper-x64, build-whisper-arm64, build-whisper-macos, build-whisper-linux, build-linux]
+    needs: [build-mac, build-windows, build-whisper-x64, build-whisper-x64-cuda, build-whisper-arm64, build-whisper-macos, build-whisper-linux, build-whisper-linux-cuda, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
