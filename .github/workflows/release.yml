@@ -217,14 +217,46 @@ jobs:
             -DGGML_NATIVE=OFF \
             -DGGML_METAL=ON \
             -DGGML_METAL_EMBED_LIBRARY=ON \
-            -DGGML_OPENMP=OFF
+            -DGGML_OPENMP=OFF \
+            -DBUILD_SHARED_LIBS=OFF
           cmake --build build --config Release --target whisper-cli
 
-      - name: Sign and package
+      - name: Fix dylib paths and sign
         run: |
-          codesign --force --sign - build/bin/whisper-cli
-          # Include Metal shader files alongside binary if present
-          cd build/bin && tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli ggml-metal.metal 2>/dev/null || tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli
+          # Find and copy ALL dylibs from anywhere in the build tree next to the binary
+          find build -name '*.dylib' -exec cp {} build/bin/ \; 2>/dev/null || true
+
+          cd build/bin
+
+          # Fix install names: rewrite every absolute dylib reference to @executable_path/
+          for target in whisper-cli *.dylib; do
+            [ -f "$target" ] || continue
+            # Get all dylib references with absolute or build-relative paths
+            otool -L "$target" 2>/dev/null | grep -v ':$' | awk '{print $1}' | while read ref; do
+              base=$(basename "$ref")
+              # Skip system frameworks/libs and already-fixed refs
+              case "$ref" in
+                /usr/lib/*|/System/*|@*) continue ;;
+              esac
+              # Rewrite to @executable_path/basename
+              install_name_tool -change "$ref" "@executable_path/$base" "$target" 2>/dev/null || true
+            done
+          done
+
+          # Also fix each dylib's own id
+          for dylib in *.dylib; do
+            [ -f "$dylib" ] || continue
+            install_name_tool -id "@executable_path/$dylib" "$dylib" 2>/dev/null || true
+          done
+
+          # Add rpath as additional fallback
+          install_name_tool -add_rpath @executable_path whisper-cli 2>/dev/null || true
+
+          # Sign everything
+          codesign --force --sign - whisper-cli *.dylib 2>/dev/null || codesign --force --sign - whisper-cli
+
+          # Package
+          tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli *.dylib ggml-metal.metal 2>/dev/null || tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli *.dylib 2>/dev/null || tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

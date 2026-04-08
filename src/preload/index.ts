@@ -65,7 +65,9 @@ const electronAPI = {
     getAvailableModels: (): Promise<Array<{
       id: string; filename: string; sizeBytes: number; ramRequiredMB: number
       labelKey: string; accuracy: string; speedMultiplier: number; multilingual: boolean
+      category: string
     }>> => ipcRenderer.invoke('model:getAvailableModels'),
+    cancelDownload: (): Promise<void> => ipcRenderer.invoke('model:cancelDownload'),
     getDownloadedModels: (): Promise<Record<string, boolean>> =>
       ipcRenderer.invoke('model:getDownloadedModels'),
     getActiveModelId: (): Promise<string> => ipcRenderer.invoke('model:getActiveModelId'),
@@ -198,6 +200,8 @@ const electronAPI = {
       'transcription:error',
       // Model/deps events
       'model:downloadProgress',
+      'model:downloadDetailedProgress',
+      'model:downloadCancelled',
       'model:loaded',
       'deps:whisperDownloadProgress',
       'deps:whisperReady',

@@ -149,19 +149,29 @@ export class WhisperBinaryManager {
     const whisperDir = dirname(whisperPath)
 
     if (process.platform === 'darwin') {
-      // Metal: check for embedded library or shader file
+      // Metal: check for shader files alongside binary
       if (existsSync(join(whisperDir, 'ggml-metal.metal')) ||
           existsSync(join(whisperDir, 'ggml-metal.metallib'))) {
         return 'metal'
       }
-      // Metal can also be embedded in the binary via GGML_METAL_EMBED_LIBRARY
-      // In that case no external file is needed — check GPU marker
+      // Check saved GPU marker from a previous detection
       const gpuMarkerPath = join(this.binDir, '.whisper-gpu')
       try {
         if (existsSync(gpuMarkerPath)) {
           const marker = readFileSync(gpuMarkerPath, 'utf-8').trim()
           if (marker === 'metal') return 'metal'
         }
+      } catch { /* ok */ }
+      // Metal can be embedded in the binary via GGML_METAL_EMBED_LIBRARY=ON,
+      // which means no external .metal/.metallib file exists.
+      // On Apple Silicon Macs, our release binary is always built with Metal.
+      // On Intel Macs, the universal binary also includes Metal if the GPU supports it.
+      // Detect by checking if the binary contains Metal references.
+      try {
+        const strings = execSync(`strings "${whisperPath}" 2>/dev/null | grep -c ggml_metal`, {
+          encoding: 'utf-8', timeout: 5000
+        }).trim()
+        if (parseInt(strings) > 0) return 'metal'
       } catch { /* ok */ }
       return 'none'
     }
@@ -275,6 +285,11 @@ export class WhisperBinaryManager {
     this.flattenDir(this.binDir, info.binariesInDir)
     try { unlinkSync(archivePath) } catch { /* ok */ }
 
+    // macOS: fix dylib paths in the downloaded binary
+    if (process.platform === 'darwin') {
+      this.fixMacOsDylibPaths(this.binDir)
+    }
+
     const whisperPath = locateWhisperCli()
     if (!whisperPath) throw new Error('whisper-cli download succeeded but binary not found after extraction')
 
@@ -282,8 +297,13 @@ export class WhisperBinaryManager {
     const variant = process.arch === 'arm64' ? 'arm64' : 'x64'
     try { writeFileSync(join(this.binDir, '.whisper-arch'), variant) } catch { /* ok */ }
 
-    // Write GPU marker — detect from extracted files (handles ARM64 Windows with no Vulkan)
-    const gpuVariant = this.detectGpuSupport()
+    // Write GPU marker — detect from binary content (handles embedded Metal + ARM64 Windows)
+    let gpuVariant = this.detectGpuSupport()
+    // On macOS, our release binary is built with GGML_METAL=ON + GGML_METAL_EMBED_LIBRARY=ON
+    // If detectGpuSupport still returns 'none' but we downloaded from our release, assume Metal
+    if (gpuVariant === 'none' && process.platform === 'darwin') {
+      gpuVariant = 'metal'
+    }
     try { writeFileSync(join(this.binDir, '.whisper-gpu'), gpuVariant) } catch { /* ok */ }
 
     onProgress(1)
@@ -404,7 +424,7 @@ export class WhisperBinaryManager {
     try {
       const files = readdirSync(binDir)
       for (const f of files) {
-        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f.endsWith('.so') || f === '.whisper-arch' || f === '.whisper-gpu' || f.endsWith('.metal') || f.endsWith('.metallib')) {
+        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f.endsWith('.dylib') || f.endsWith('.so') || (f.startsWith('lib') && f.includes('.so.')) || f === '.whisper-arch' || f === '.whisper-gpu' || f.endsWith('.metal') || f.endsWith('.metallib')) {
           try { unlinkSync(join(binDir, f)) } catch { /* ok */ }
         }
       }
@@ -476,6 +496,69 @@ export class WhisperBinaryManager {
     } else {
       execSync(`unzip -o "${archivePath}" -d "${destDir}"`)
     }
+  }
+
+  /**
+   * Fix absolute dylib paths in whisper-cli on macOS.
+   * Rewrites hardcoded CI build paths to @executable_path/ so dylibs
+   * are found next to the binary at runtime.
+   */
+  private fixMacOsDylibPaths(binDir: string): void {
+    try {
+      const whisperBin = join(binDir, 'whisper-cli')
+      if (!existsSync(whisperBin)) return
+
+      // Get all targets: whisper-cli + any dylibs
+      const files = readdirSync(binDir)
+      const targets = ['whisper-cli', ...files.filter(f => f.endsWith('.dylib'))]
+
+      for (const target of targets) {
+        const targetPath = join(binDir, target)
+        if (!existsSync(targetPath)) continue
+
+        // Read dylib references
+        let otoolOutput = ''
+        try {
+          otoolOutput = execSync(`otool -L "${targetPath}" 2>/dev/null`, { encoding: 'utf-8' })
+        } catch { continue }
+
+        // Parse each reference line
+        for (const line of otoolOutput.split('\n')) {
+          const match = line.trim().match(/^(.+\.dylib)\s/)
+          if (!match) continue
+          const ref = match[1]
+          const base = ref.split('/').pop()!
+
+          // Skip system libs and already-fixed refs
+          if (ref.startsWith('/usr/lib/') || ref.startsWith('/System/') || ref.startsWith('@')) continue
+
+          // Rewrite to @executable_path/basename
+          try {
+            execSync(`install_name_tool -change "${ref}" "@executable_path/${base}" "${targetPath}" 2>/dev/null`)
+          } catch { /* ok */ }
+        }
+
+        // Fix dylib's own id
+        if (target.endsWith('.dylib')) {
+          try {
+            execSync(`install_name_tool -id "@executable_path/${target}" "${targetPath}" 2>/dev/null`)
+          } catch { /* ok */ }
+        }
+      }
+
+      // Add rpath as fallback
+      try {
+        execSync(`install_name_tool -add_rpath @executable_path "${whisperBin}" 2>/dev/null`)
+      } catch { /* ok — may already exist */ }
+
+      // Re-sign after modification
+      try {
+        execSync(`codesign --force --sign - "${whisperBin}" 2>/dev/null`)
+        for (const f of files.filter(f => f.endsWith('.dylib'))) {
+          execSync(`codesign --force --sign - "${join(binDir, f)}" 2>/dev/null`)
+        }
+      } catch { /* ok */ }
+    } catch { /* non-fatal — the binary may still work */ }
   }
 
   private flattenDir(destDir: string, subDirName: string): void {
