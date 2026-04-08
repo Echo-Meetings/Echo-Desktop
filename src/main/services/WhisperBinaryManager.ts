@@ -149,19 +149,29 @@ export class WhisperBinaryManager {
     const whisperDir = dirname(whisperPath)
 
     if (process.platform === 'darwin') {
-      // Metal: check for embedded library or shader file
+      // Metal: check for shader files alongside binary
       if (existsSync(join(whisperDir, 'ggml-metal.metal')) ||
           existsSync(join(whisperDir, 'ggml-metal.metallib'))) {
         return 'metal'
       }
-      // Metal can also be embedded in the binary via GGML_METAL_EMBED_LIBRARY
-      // In that case no external file is needed — check GPU marker
+      // Check saved GPU marker from a previous detection
       const gpuMarkerPath = join(this.binDir, '.whisper-gpu')
       try {
         if (existsSync(gpuMarkerPath)) {
           const marker = readFileSync(gpuMarkerPath, 'utf-8').trim()
           if (marker === 'metal') return 'metal'
         }
+      } catch { /* ok */ }
+      // Metal can be embedded in the binary via GGML_METAL_EMBED_LIBRARY=ON,
+      // which means no external .metal/.metallib file exists.
+      // On Apple Silicon Macs, our release binary is always built with Metal.
+      // On Intel Macs, the universal binary also includes Metal if the GPU supports it.
+      // Detect by checking if the binary contains Metal references.
+      try {
+        const strings = execSync(`strings "${whisperPath}" 2>/dev/null | grep -c ggml_metal`, {
+          encoding: 'utf-8', timeout: 5000
+        }).trim()
+        if (parseInt(strings) > 0) return 'metal'
       } catch { /* ok */ }
       return 'none'
     }
@@ -287,8 +297,13 @@ export class WhisperBinaryManager {
     const variant = process.arch === 'arm64' ? 'arm64' : 'x64'
     try { writeFileSync(join(this.binDir, '.whisper-arch'), variant) } catch { /* ok */ }
 
-    // Write GPU marker — detect from extracted files (handles ARM64 Windows with no Vulkan)
-    const gpuVariant = this.detectGpuSupport()
+    // Write GPU marker — detect from binary content (handles embedded Metal + ARM64 Windows)
+    let gpuVariant = this.detectGpuSupport()
+    // On macOS, our release binary is built with GGML_METAL=ON + GGML_METAL_EMBED_LIBRARY=ON
+    // If detectGpuSupport still returns 'none' but we downloaded from our release, assume Metal
+    if (gpuVariant === 'none' && process.platform === 'darwin') {
+      gpuVariant = 'metal'
+    }
     try { writeFileSync(join(this.binDir, '.whisper-gpu'), gpuVariant) } catch { /* ok */ }
 
     onProgress(1)
