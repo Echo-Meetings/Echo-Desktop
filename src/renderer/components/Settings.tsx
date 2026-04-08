@@ -18,7 +18,7 @@ interface DiagnosticResult {
   whisperPath: string | null
   ffmpegPath: string | null
   whisperVersion: string
-  gpuBackend: 'vulkan' | 'metal' | 'none'
+  gpuBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
 }
 
 interface SettingsProps {
@@ -50,9 +50,15 @@ export function Settings({ onClose }: SettingsProps) {
   const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null)
   const [hardwareInfo, setHardwareInfo] = useState<{
     cpuCores: number; totalMemoryMB: number; optimalThreads: number
-    gpu: { available: boolean; backend: 'metal' | 'vulkan' | 'none'; name: string | null; vramMB: number | null }
-    gpuBinarySupport: 'vulkan' | 'metal' | 'none'
+    gpu: {
+      available: boolean; backend: 'cuda' | 'metal' | 'vulkan' | 'none'
+      vendor: 'nvidia' | 'amd' | 'intel' | 'apple' | 'unknown'
+      name: string | null; vramMB: number | null
+      cudaAvailable: boolean; vulkanAvailable: boolean; driverVersion: string | null
+    }
+    gpuBinarySupport: 'cuda' | 'vulkan' | 'metal' | 'none'
     gpuEffective: boolean
+    recommendedBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
   } | null>(null)
   const [recommendedModel, setRecommendedModel] = useState<string | null>(null)
   const [accelerationMode, setAccelerationMode] = useState<'gpu' | 'cpu'>('gpu')
@@ -385,8 +391,20 @@ export function Settings({ onClose }: SettingsProps) {
                       backgroundColor: hardwareInfo.gpuEffective ? 'rgba(34,197,94,0.1)' : 'var(--color-highlight)',
                     }}>
                       {hardwareInfo.gpuEffective
-                        ? `${hardwareInfo.gpu.backend === 'metal' ? 'Metal' : 'Vulkan'} — ${t.gpuActive}`
+                        ? `${hardwareInfo.gpuBinarySupport === 'cuda' ? 'CUDA' : hardwareInfo.gpuBinarySupport === 'metal' ? 'Metal' : 'Vulkan'} — ${t.gpuActive}`
                         : t.gpuBinaryNotSupported}
+                    </span>
+                  )}
+                  {hardwareInfo?.gpu.vendor === 'nvidia' && (
+                    <span style={{
+                      fontSize: 11,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      fontWeight: 500,
+                      color: hardwareInfo.gpu.cudaAvailable ? '#22c55e' : 'var(--color-secondary)',
+                      backgroundColor: hardwareInfo.gpu.cudaAvailable ? 'rgba(34,197,94,0.1)' : 'var(--color-highlight)',
+                    }}>
+                      {hardwareInfo.gpu.cudaAvailable ? t.gpuCudaAvailable : t.gpuCudaNotAvailable}
                     </span>
                   )}
                 </div>
@@ -397,6 +415,15 @@ export function Settings({ onClose }: SettingsProps) {
                   <div style={styles.cardRow}>
                     <div style={styles.rowLabel}>{t.vram}</div>
                     <div style={styles.rowValue}>{formatSize(hardwareInfo.gpu.vramMB * 1024 * 1024)}</div>
+                  </div>
+                </>
+              )}
+              {hardwareInfo?.gpu.driverVersion && (
+                <>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.cardRow}>
+                    <div style={styles.rowLabel}>{t.gpuDriverVersion}</div>
+                    <div style={styles.rowValue}>{hardwareInfo.gpu.driverVersion}</div>
                   </div>
                 </>
               )}

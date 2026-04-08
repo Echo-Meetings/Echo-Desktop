@@ -61,6 +61,10 @@ interface AppStore {
   setLanguageOverride: (lang: string) => void
   setHasCompletedOnboarding: (done: boolean) => void
 
+  // GPU error notification
+  gpuError: { backend: string; error: string } | null
+  setGpuError: (error: { backend: string; error: string } | null) => void
+
   // Theme
   theme: 'dark' | 'light'
   setTheme: (theme: 'dark' | 'light') => void
@@ -189,6 +193,10 @@ export const useAppStore = create<AppStore>((set) => ({
   setUiLanguage: (lang) => set({ uiLanguage: lang }),
   setLanguageOverride: (lang) => set({ languageOverride: lang }),
   setHasCompletedOnboarding: (done) => set({ hasCompletedOnboarding: done }),
+
+  // GPU error notification
+  gpuError: null,
+  setGpuError: (error) => set({ gpuError: error }),
 
   // Theme
   theme: 'dark',

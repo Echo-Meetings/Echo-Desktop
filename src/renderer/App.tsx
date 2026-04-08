@@ -17,7 +17,9 @@ export default function App() {
     focusedSessionId,
     queueSessions,
     theme,
-    setTheme
+    setTheme,
+    gpuError,
+    setGpuError
   } = useAppStore()
 
   // Initialize theme from system preference
@@ -169,6 +171,12 @@ export default function App() {
       window.electronAPI.on('queue:sessionRemoved', (sessionId) => {
         useAppStore.getState().removeSession(sessionId as string)
       }),
+      window.electronAPI.on('queue:gpuError', (_sessionId, data) => {
+        const { backend, error } = data as { backend: string; error: string }
+        const backendName = backend === 'cuda' ? 'CUDA' : backend === 'metal' ? 'Metal' : 'Vulkan'
+        console.warn(`[GPU Error] ${backendName}: ${error}`)
+        useAppStore.getState().setGpuError({ backend: backendName, error })
+      }),
       // Model events
       window.electronAPI.on('model:downloadProgress', (progress) => {
         useAppStore.getState().setModelDownloadProgress(progress as number)
@@ -223,13 +231,56 @@ export default function App() {
           backgroundColor: 'var(--color-border)'
         }} />
       </div>
-      <main style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-        <ContentRouter
-          phase={phase}
-          viewingEntry={viewingEntry}
-          focusedSessionId={focusedSessionId}
-          queueSessions={queueSessions}
-        />
+      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {gpuError && (
+          <div style={{
+            padding: '8px 16px',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            fontSize: 13,
+            flexShrink: 0
+          }}>
+            <span style={{ color: '#ef4444' }}>
+              GPU acceleration failed ({gpuError.backend}).
+            </span>
+            <button
+              onClick={async () => {
+                await window.electronAPI.settings.set('accelerationMode', 'cpu')
+                setGpuError(null)
+              }}
+              style={{
+                padding: '2px 10px', fontSize: 12, borderRadius: 4,
+                border: '1px solid var(--color-border)', cursor: 'pointer',
+                backgroundColor: 'var(--color-surface)', color: 'var(--color-foreground)',
+                fontFamily: 'inherit'
+              }}
+            >
+              Switch to CPU
+            </button>
+            <button
+              onClick={() => setGpuError(null)}
+              style={{
+                padding: '2px 10px', fontSize: 12, borderRadius: 4,
+                border: '1px solid var(--color-border)', cursor: 'pointer',
+                backgroundColor: 'var(--color-surface)', color: 'var(--color-secondary)',
+                fontFamily: 'inherit'
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+          <ContentRouter
+            phase={phase}
+            viewingEntry={viewingEntry}
+            focusedSessionId={focusedSessionId}
+            queueSessions={queueSessions}
+          />
+        </div>
       </main>
     </div>
   )
