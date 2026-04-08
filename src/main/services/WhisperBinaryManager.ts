@@ -404,7 +404,7 @@ export class WhisperBinaryManager {
     try {
       const files = readdirSync(binDir)
       for (const f of files) {
-        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f.endsWith('.so') || f === '.whisper-arch' || f === '.whisper-gpu' || f.endsWith('.metal') || f.endsWith('.metallib')) {
+        if (f === 'whisper-cli.exe' || f === 'whisper-cli' || f.endsWith('.dll') || f.endsWith('.dylib') || f.endsWith('.so') || (f.startsWith('lib') && f.includes('.so.')) || f === '.whisper-arch' || f === '.whisper-gpu' || f.endsWith('.metal') || f.endsWith('.metallib')) {
           try { unlinkSync(join(binDir, f)) } catch { /* ok */ }
         }
       }
