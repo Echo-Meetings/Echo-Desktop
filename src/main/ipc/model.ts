@@ -2,7 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { statSync } from 'fs'
 import { locateWhisperCli, locateFFmpeg, locateFFprobe } from '../services/BinaryPaths'
 import { modelManager, whisperBinaryManager } from './transcription'
-import { getHardwareInfo, getOptimalThreadCount } from '../services/HardwareDetection'
+import { getHardwareInfo, getOptimalThreadCount, getRecommendedBackend } from '../services/HardwareDetection'
 import { getRecommendedModelId } from '../services/ModelManager'
 
 function safeSend(channel: string, ...args: unknown[]): void {
@@ -74,11 +74,22 @@ export function registerModelIpc(): void {
     try {
       await modelManager.downloadModel((fraction) => {
         safeSend('model:downloadProgress', fraction)
-      }, modelId)
+      }, modelId, (info) => {
+        safeSend('model:downloadDetailedProgress', info)
+      })
       safeSend('model:loaded')
     } catch (err) {
-      console.error('Model download failed:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg === 'Download cancelled') {
+        safeSend('model:downloadCancelled')
+      } else {
+        console.error('Model download failed:', err)
+      }
     }
+  })
+
+  ipcMain.handle('model:cancelDownload', async () => {
+    modelManager.cancelDownload()
   })
 
   ipcMain.handle('model:getModelsDiskUsage', async () => {
@@ -91,11 +102,13 @@ export function registerModelIpc(): void {
     const info = getHardwareInfo()
     const gpuBinarySupport = whisperBinaryManager.detectGpuSupport()
     const gpuEffective = info.gpu.available && gpuBinarySupport !== 'none'
+    const recommendedBackend = getRecommendedBackend(info.gpu)
     return {
       ...info,
-      optimalThreads: getOptimalThreadCount(gpuEffective),
+      optimalThreads: getOptimalThreadCount(gpuEffective, gpuBinarySupport),
       gpuBinarySupport,
-      gpuEffective
+      gpuEffective,
+      recommendedBackend
     }
   })
 

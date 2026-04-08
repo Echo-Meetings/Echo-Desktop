@@ -27,6 +27,7 @@ export function Sidebar() {
     sortField,
     sortDirection,
     tags,
+    modelDownloadProgress,
     setSelectedEntryId,
     setViewingEntry,
     setHistorySearch,
@@ -390,6 +391,31 @@ export function Sidebar() {
           ))
         )}
       </div>
+
+      {/* Download status indicator */}
+      {modelDownloadProgress > 0 && modelDownloadProgress < 1 && (
+        <div style={{
+          padding: '8px 16px',
+          borderTop: '1px solid var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--color-secondary)' }}>{t.modelDownloading}</span>
+            <span style={{ fontSize: 11, color: 'var(--color-secondary)' }}>{Math.round(modelDownloadProgress * 100)}%</span>
+          </div>
+          <div style={{
+            width: '100%', height: 3, borderRadius: 2,
+            backgroundColor: 'var(--color-highlight)', overflow: 'hidden'
+          }}>
+            <div style={{
+              height: '100%', borderRadius: 2,
+              width: `${Math.round(modelDownloadProgress * 100)}%`,
+              backgroundColor: '#22c55e',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+        </div>
+      )}
 
       <SidebarFooter username={username} onSettingsClick={() => setShowSettings(true)} />
 

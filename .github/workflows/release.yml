@@ -129,6 +129,77 @@ jobs:
           name: whisper-arm64
           path: whisper-bin-arm64-windows.zip
 
+  # Build whisper.cpp for x64 Windows with CUDA GPU acceleration (NVIDIA)
+  build-whisper-x64-cuda:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: v1.8.4
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: '12.6.2'
+          method: 'network'
+
+      - name: Build with CUDA
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_CUDA=ON -DGGML_NATIVE=OFF
+          cmake --build build --config Release --target whisper-cli
+
+      - name: Package binaries
+        run: |
+          New-Item -ItemType Directory -Path package -Force
+          Copy-Item build\bin\Release\whisper-cli.exe package\
+          Get-ChildItem build\bin\Release\*.dll | Copy-Item -Destination package\
+          Compress-Archive -Path package\* -DestinationPath whisper-bin-x64-cuda-windows.zip
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-x64-cuda
+          path: whisper-bin-x64-cuda-windows.zip
+
+  # Build whisper.cpp for x64 Linux with CUDA GPU acceleration (NVIDIA)
+  build-whisper-linux-cuda:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout whisper.cpp
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: v1.8.4
+
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: '12.6.2'
+          method: 'network'
+
+      - name: Build with CUDA GPU acceleration
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_NATIVE=OFF \
+            -DGGML_OPENMP=OFF \
+            -DGGML_CUDA=ON \
+            -DBUILD_SHARED_LIBS=ON
+          cmake --build build --config Release --target whisper-cli
+
+      - name: Package
+        run: |
+          cd build/bin
+          tar czf ../../whisper-bin-x64-cuda-linux.tar.gz whisper-cli lib*.so* 2>/dev/null || tar czf ../../whisper-bin-x64-cuda-linux.tar.gz whisper-cli
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-linux-cuda
+          path: whisper-bin-x64-cuda-linux.tar.gz
+
   # Build whisper-cli universal binary for macOS with Metal GPU acceleration
   build-whisper-macos:
     runs-on: macos-latest
@@ -146,14 +217,46 @@ jobs:
             -DGGML_NATIVE=OFF \
             -DGGML_METAL=ON \
             -DGGML_METAL_EMBED_LIBRARY=ON \
-            -DGGML_OPENMP=OFF
+            -DGGML_OPENMP=OFF \
+            -DBUILD_SHARED_LIBS=OFF
           cmake --build build --config Release --target whisper-cli
 
-      - name: Sign and package
+      - name: Fix dylib paths and sign
         run: |
-          codesign --force --sign - build/bin/whisper-cli
-          # Include Metal shader files alongside binary if present
-          cd build/bin && tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli ggml-metal.metal 2>/dev/null || tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli
+          # Find and copy ALL dylibs from anywhere in the build tree next to the binary
+          find build -name '*.dylib' -exec cp {} build/bin/ \; 2>/dev/null || true
+
+          cd build/bin
+
+          # Fix install names: rewrite every absolute dylib reference to @executable_path/
+          for target in whisper-cli *.dylib; do
+            [ -f "$target" ] || continue
+            # Get all dylib references with absolute or build-relative paths
+            otool -L "$target" 2>/dev/null | grep -v ':$' | awk '{print $1}' | while read ref; do
+              base=$(basename "$ref")
+              # Skip system frameworks/libs and already-fixed refs
+              case "$ref" in
+                /usr/lib/*|/System/*|@*) continue ;;
+              esac
+              # Rewrite to @executable_path/basename
+              install_name_tool -change "$ref" "@executable_path/$base" "$target" 2>/dev/null || true
+            done
+          done
+
+          # Also fix each dylib's own id
+          for dylib in *.dylib; do
+            [ -f "$dylib" ] || continue
+            install_name_tool -id "@executable_path/$dylib" "$dylib" 2>/dev/null || true
+          done
+
+          # Add rpath as additional fallback
+          install_name_tool -add_rpath @executable_path whisper-cli 2>/dev/null || true
+
+          # Sign everything
+          codesign --force --sign - whisper-cli *.dylib 2>/dev/null || codesign --force --sign - whisper-cli
+
+          # Package
+          tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli *.dylib ggml-metal.metal 2>/dev/null || tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli *.dylib 2>/dev/null || tar czf ../../whisper-bin-universal-macos.tar.gz whisper-cli
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -227,7 +330,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [build-mac, build-windows, build-whisper-x64, build-whisper-arm64, build-whisper-macos, build-whisper-linux, build-linux]
+    needs: [build-mac, build-windows, build-whisper-x64, build-whisper-x64-cuda, build-whisper-arm64, build-whisper-macos, build-whisper-linux, build-whisper-linux-cuda, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

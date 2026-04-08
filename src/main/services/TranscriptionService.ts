@@ -51,13 +51,13 @@ export class TranscriptionService {
   private requestedLanguage: string | null = null
   private processExitPromise: Promise<void> | null = null
   private performanceConfig: PerformanceConfig = { accelerationMode: 'gpu', flashAttention: true, threadCount: 'auto' }
-  private gpuBinarySupport: 'vulkan' | 'metal' | 'none' = 'none'
+  private gpuBinarySupport: 'cuda' | 'vulkan' | 'metal' | 'none' = 'none'
 
   setPerformanceConfig(config: PerformanceConfig): void {
     this.performanceConfig = config
   }
 
-  setGpuBinarySupport(support: 'vulkan' | 'metal' | 'none'): void {
+  setGpuBinarySupport(support: 'cuda' | 'vulkan' | 'metal' | 'none'): void {
     this.gpuBinarySupport = support
   }
 
@@ -88,7 +88,7 @@ export class TranscriptionService {
 
     const hasGpu = this.performanceConfig.accelerationMode === 'gpu' && this.gpuBinarySupport !== 'none'
     const threadCount = this.performanceConfig.threadCount === 'auto'
-      ? getOptimalThreadCount(hasGpu)
+      ? getOptimalThreadCount(hasGpu, this.gpuBinarySupport)
       : this.performanceConfig.threadCount
 
     const args = [
@@ -130,9 +130,15 @@ export class TranscriptionService {
       const whisperDir = dirname(whisperPath)
       spawnEnv.PATH = `${whisperDir};${spawnEnv.PATH || ''}`
     }
-    // macOS: set Metal shader search path
+    // CUDA: set default device
+    if (this.gpuBinarySupport === 'cuda') {
+      spawnEnv.CUDA_VISIBLE_DEVICES = spawnEnv.CUDA_VISIBLE_DEVICES || '0'
+    }
+    // macOS: set Metal shader search path and library path for dylibs
     if (process.platform === 'darwin') {
-      spawnEnv.GGML_METAL_PATH_RESOURCES = dirname(whisperPath)
+      const whisperDir = dirname(whisperPath)
+      spawnEnv.GGML_METAL_PATH_RESOURCES = whisperDir
+      spawnEnv.DYLD_LIBRARY_PATH = whisperDir
     }
 
     return new Promise((resolve, reject) => {

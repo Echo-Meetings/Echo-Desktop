@@ -5,6 +5,8 @@ import { get as httpsGet } from 'https'
 import { IncomingMessage } from 'http'
 import type { HardwareInfo } from './HardwareDetection'
 
+export type ModelCategory = 'transcription' | 'meeting-notes'
+
 export interface ModelDefinition {
   id: string
   filename: string
@@ -17,6 +19,14 @@ export interface ModelDefinition {
   /** Relative speed vs large-v3-turbo (higher = faster) */
   speedMultiplier: number
   multilingual: boolean
+  category: ModelCategory
+}
+
+export interface DownloadProgress {
+  fraction: number
+  downloadedBytes: number
+  totalBytes: number
+  etaSeconds: number | null
 }
 
 const HF_BASE = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main'
@@ -31,7 +41,8 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     labelKey: 'modelMedium',
     accuracy: 'high',
     speedMultiplier: 2,
-    multilingual: true
+    multilingual: true,
+    category: 'transcription'
   },
   {
     id: 'large-v3-turbo',
@@ -42,7 +53,8 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     labelKey: 'modelLargeV3Turbo',
     accuracy: 'very-high',
     speedMultiplier: 1,
-    multilingual: true
+    multilingual: true,
+    category: 'transcription'
   },
   {
     id: 'large-v3-turbo-q5',
@@ -53,7 +65,8 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     labelKey: 'modelLargeV3TurboQ5',
     accuracy: 'very-high',
     speedMultiplier: 1.4,
-    multilingual: true
+    multilingual: true,
+    category: 'transcription'
   }
 ]
 
@@ -73,9 +86,17 @@ export function getRecommendedModelId(info: HardwareInfo): string {
 export class ModelManager {
   private modelsDir: string
   private activeModelId: string = DEFAULT_MODEL_ID
+  private activeDownloadAbort: AbortController | null = null
 
   constructor() {
     this.modelsDir = join(app.getPath('userData'), 'models')
+  }
+
+  cancelDownload(): void {
+    if (this.activeDownloadAbort) {
+      this.activeDownloadAbort.abort()
+      this.activeDownloadAbort = null
+    }
   }
 
   getAvailableModels(): ModelDefinition[] {
@@ -153,7 +174,7 @@ export class ModelManager {
     return total
   }
 
-  async downloadModel(onProgress: (fraction: number) => void, modelId?: string): Promise<string> {
+  async downloadModel(onProgress: (fraction: number) => void, modelId?: string, onDetailedProgress?: (info: DownloadProgress) => void): Promise<string> {
     const id = modelId || this.activeModelId
     const model = MODEL_REGISTRY.find((m) => m.id === id)
     if (!model) throw new Error(`Unknown model: ${id}`)
@@ -168,6 +189,8 @@ export class ModelManager {
     }
 
     const modelPath = join(this.modelsDir, model.filename)
+    const abortController = new AbortController()
+    this.activeDownloadAbort = abortController
 
     return new Promise((resolve, reject) => {
       const downloadWithRedirects = (url: string, redirectCount = 0): void => {
@@ -176,7 +199,13 @@ export class ModelManager {
           return
         }
 
-        httpsGet(url, (response: IncomingMessage) => {
+        if (abortController.signal.aborted) {
+          try { unlinkSync(modelPath) } catch { /* ok */ }
+          reject(new Error('Download cancelled'))
+          return
+        }
+
+        const req = httpsGet(url, (response: IncomingMessage) => {
           if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
             downloadWithRedirects(response.headers.location, redirectCount + 1)
             return
@@ -189,18 +218,35 @@ export class ModelManager {
 
           const totalBytes = parseInt(response.headers['content-length'] || '0', 10) || model.sizeBytes
           let downloadedBytes = 0
+          const startTime = Date.now()
 
           const fileStream = createWriteStream(modelPath)
 
+          abortController.signal.addEventListener('abort', () => {
+            response.destroy()
+            fileStream.close()
+            try { unlinkSync(modelPath) } catch { /* ok */ }
+            reject(new Error('Download cancelled'))
+          })
+
           response.on('data', (chunk: Buffer) => {
             downloadedBytes += chunk.length
-            onProgress(Math.min(downloadedBytes / totalBytes, 0.99))
+            const fraction = Math.min(downloadedBytes / totalBytes, 0.99)
+            onProgress(fraction)
+            if (onDetailedProgress) {
+              const elapsed = (Date.now() - startTime) / 1000
+              const speed = downloadedBytes / elapsed
+              const remaining = totalBytes - downloadedBytes
+              const etaSeconds = speed > 0 ? Math.round(remaining / speed) : null
+              onDetailedProgress({ fraction, downloadedBytes, totalBytes, etaSeconds })
+            }
           })
 
           response.pipe(fileStream)
 
           fileStream.on('finish', () => {
             fileStream.close()
+            this.activeDownloadAbort = null
             try {
               const finalSize = statSync(modelPath).size
               if (finalSize < model.sizeBytes * 0.9) {
@@ -215,9 +261,17 @@ export class ModelManager {
 
           fileStream.on('error', (err) => {
             fileStream.close()
+            this.activeDownloadAbort = null
             reject(err)
           })
-        }).on('error', reject)
+        }).on('error', (err) => {
+          this.activeDownloadAbort = null
+          reject(err)
+        })
+
+        abortController.signal.addEventListener('abort', () => {
+          req.destroy()
+        })
       }
 
       downloadWithRedirects(model.url)

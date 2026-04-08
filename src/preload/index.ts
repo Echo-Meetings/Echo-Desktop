@@ -91,7 +91,9 @@ const electronAPI = {
     getAvailableModels: (): Promise<Array<{
       id: string; filename: string; sizeBytes: number; ramRequiredMB: number
       labelKey: string; accuracy: string; speedMultiplier: number; multilingual: boolean
+      category: string
     }>> => ipcRenderer.invoke('model:getAvailableModels'),
+    cancelDownload: (): Promise<void> => ipcRenderer.invoke('model:cancelDownload'),
     getDownloadedModels: (): Promise<Record<string, boolean>> =>
       ipcRenderer.invoke('model:getDownloadedModels'),
     getActiveModelId: (): Promise<string> => ipcRenderer.invoke('model:getActiveModelId'),
@@ -107,9 +109,15 @@ const electronAPI = {
     getInfo: (): Promise<{
       cpuCores: number; totalMemoryMB: number; freeMemoryMB: number
       platform: string; arch: string; optimalThreads: number
-      gpu: { available: boolean; backend: 'metal' | 'vulkan' | 'none'; name: string | null; vramMB: number | null }
-      gpuBinarySupport: 'vulkan' | 'metal' | 'none'
+      gpu: {
+        available: boolean; backend: 'cuda' | 'metal' | 'vulkan' | 'none'
+        vendor: 'nvidia' | 'amd' | 'intel' | 'apple' | 'unknown'
+        name: string | null; vramMB: number | null
+        cudaAvailable: boolean; vulkanAvailable: boolean; driverVersion: string | null
+      }
+      gpuBinarySupport: 'cuda' | 'vulkan' | 'metal' | 'none'
       gpuEffective: boolean
+      recommendedBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
     }> => ipcRenderer.invoke('hardware:getInfo'),
     getRecommendedModel: (): Promise<string> => ipcRenderer.invoke('hardware:getRecommendedModel')
   },
@@ -142,7 +150,7 @@ const electronAPI = {
       whisperPath: string | null
       ffmpegPath: string | null
       whisperVersion: string
-      gpuBackend: 'vulkan' | 'metal' | 'none'
+      gpuBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
     }> => ipcRenderer.invoke('deps:diagnose'),
     deleteWhisper: (): Promise<{ deleted: boolean }> => ipcRenderer.invoke('deps:deleteWhisper'),
     downloadWhisper: (): Promise<void> => ipcRenderer.invoke('deps:downloadWhisper'),
@@ -162,7 +170,15 @@ const electronAPI = {
       ipcRenderer.invoke('settings:openDirectoryPicker'),
     getStorageSize: (): Promise<number> => ipcRenderer.invoke('settings:getStorageSize'),
     revealStorage: (): Promise<void> => ipcRenderer.invoke('settings:revealStorage'),
-    showPrivacyPolicy: (locale?: string): Promise<boolean> => ipcRenderer.invoke('settings:showPrivacyPolicy', locale)
+    showPrivacyPolicy: (locale?: string): Promise<boolean> => ipcRenderer.invoke('settings:showPrivacyPolicy', locale),
+    getBackupDirectory: (): Promise<string> => ipcRenderer.invoke('settings:getBackupDirectory'),
+    setBackupDirectory: (path: string): Promise<void> => ipcRenderer.invoke('settings:setBackupDirectory', path),
+    createBackup: (): Promise<{ success?: boolean; path?: string; entryCount?: number; totalSize?: number; error?: string }> =>
+      ipcRenderer.invoke('settings:createBackup'),
+    readBackupManifest: (dirPath: string): Promise<{ manifest?: { version: string; appVersion: string; createdAt: string; entryCount: number; totalSizeBytes: number }; error?: string }> =>
+      ipcRenderer.invoke('settings:readBackupManifest', dirPath),
+    restoreBackup: (dirPath: string): Promise<{ success?: boolean; restoredCount?: number; skippedCount?: number; error?: string }> =>
+      ipcRenderer.invoke('settings:restoreBackup', dirPath)
   },
 
   // Update check
@@ -210,6 +226,7 @@ const electronAPI = {
       'queue:sessionError',
       'queue:sessionRemoved',
       'queue:memoryWarning',
+      'queue:gpuError',
       // Legacy transcription events
       'transcription:progress',
       'transcription:segment',
@@ -217,6 +234,8 @@ const electronAPI = {
       'transcription:error',
       // Model/deps events
       'model:downloadProgress',
+      'model:downloadDetailedProgress',
+      'model:downloadCancelled',
       'model:loaded',
       'deps:whisperDownloadProgress',
       'deps:whisperReady',
@@ -227,6 +246,8 @@ const electronAPI = {
       'deps:status',
       'deps:allReady',
       'deps:error',
+      // Backup
+      'backup:progress',
       // Theme
       'theme:changed'
     ]

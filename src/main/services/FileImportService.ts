@@ -4,6 +4,7 @@ import { tmpdir } from 'os'
 import { spawn } from 'child_process'
 import { randomUUID } from 'crypto'
 import { locateFFmpeg, locateFFprobe } from './BinaryPaths'
+import { detectHwEncoder } from './HardwareDetection'
 
 const SUPPORTED_EXTENSIONS = new Set(['webm', 'mp4', 'm4v', 'mp3', 'm4a', 'wav', 'mov', 'ogg'])
 const NEEDS_CONVERSION = new Set(['webm', 'ogg'])
@@ -105,26 +106,47 @@ export async function convertToWav(filePath: string): Promise<string> {
 
 /**
  * Convert WebM/OGG to MP4 for playback compatibility.
+ * Uses hardware encoder (NVENC/AMF/QSV/VideoToolbox) when available.
  */
 export async function convertToMp4(inputPath: string, outputPath: string): Promise<void> {
   const ffmpegPath = locateFFmpeg()
   if (!ffmpegPath) throw new Error('ffmpeg not found')
 
+  const { h264Encoder } = detectHwEncoder(ffmpegPath)
+  const encoderArgs = getEncoderArgs(h264Encoder, 'fast')
+
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegPath, [
       '-i', inputPath,
-      '-c:v', 'libx264',
+      '-c:v', h264Encoder,
+      ...encoderArgs,
       '-c:a', 'aac',
-      '-preset', 'ultrafast',
-      '-crf', '28',
       '-threads', '2',
       '-y',
       outputPath
     ])
 
+    let stderr = ''
+    proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
+
     proc.on('close', (code) => {
-      if (code === 0) resolve()
-      else reject(new Error(`ffmpeg mp4 conversion failed (code ${code})`))
+      if (code === 0) { resolve(); return }
+      // Fallback to software encoder if HW encoder fails
+      if (h264Encoder !== 'libx264') {
+        console.warn(`[ffmpeg] HW encoder ${h264Encoder} failed, falling back to libx264`)
+        const fallback = spawn(ffmpegPath, [
+          '-i', inputPath,
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+          '-c:a', 'aac', '-threads', '2', '-y', outputPath
+        ])
+        fallback.on('close', (c) => {
+          if (c === 0) resolve()
+          else reject(new Error(`ffmpeg mp4 conversion failed (code ${c})`))
+        })
+        fallback.on('error', reject)
+      } else {
+        reject(new Error(`ffmpeg mp4 conversion failed (code ${code})`))
+      }
     })
     proc.on('error', reject)
   })
@@ -192,19 +214,22 @@ export function checkIsHevc(filePath: string): Promise<boolean> {
 /**
  * Convert any video to H.264 MP4 for Chromium playback compatibility.
  * HEVC (H.265) MOV files from iPhones are not supported by Chromium.
+ * Uses hardware encoder (NVENC/AMF/QSV/VideoToolbox) when available for 5-10x speedup.
  */
 export async function convertVideoForPlayback(inputPath: string, outputPath: string): Promise<void> {
   const ffmpegPath = locateFFmpeg()
   if (!ffmpegPath) throw new Error('ffmpeg not found')
 
+  const { h264Encoder } = detectHwEncoder(ffmpegPath)
+  const encoderArgs = getEncoderArgs(h264Encoder, 'balanced')
+
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegPath, [
       '-i', inputPath,
-      '-c:v', 'libx264',     // H.264 — universally supported
-      '-crf', '23',           // good quality
-      '-preset', 'fast',      // balance speed/compression
-      '-c:a', 'aac',          // AAC audio
-      '-movflags', '+faststart',  // enable streaming playback
+      '-c:v', h264Encoder,
+      ...encoderArgs,
+      '-c:a', 'aac',
+      '-movflags', '+faststart',
       '-y',
       outputPath
     ])
@@ -213,8 +238,25 @@ export async function convertVideoForPlayback(inputPath: string, outputPath: str
     proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
 
     proc.on('close', (code) => {
-      if (code === 0) resolve()
-      else reject(new Error(`Video conversion failed (code ${code}): ${stderr.slice(-200)}`))
+      if (code === 0) { resolve(); return }
+      // Fallback to software encoder if HW encoder fails
+      if (h264Encoder !== 'libx264') {
+        console.warn(`[ffmpeg] HW encoder ${h264Encoder} failed, falling back to libx264`)
+        const fallback = spawn(ffmpegPath, [
+          '-i', inputPath,
+          '-c:v', 'libx264', '-crf', '23', '-preset', 'fast',
+          '-c:a', 'aac', '-movflags', '+faststart', '-y', outputPath
+        ])
+        let fallbackStderr = ''
+        fallback.stderr.on('data', (chunk) => { fallbackStderr += chunk.toString() })
+        fallback.on('close', (c) => {
+          if (c === 0) resolve()
+          else reject(new Error(`Video conversion failed (code ${c}): ${fallbackStderr.slice(-200)}`))
+        })
+        fallback.on('error', reject)
+      } else {
+        reject(new Error(`Video conversion failed (code ${code}): ${stderr.slice(-200)}`))
+      }
     })
     proc.on('error', reject)
   })
@@ -251,6 +293,35 @@ export function getDisplayFormats(): string {
 
 export function getFileName(filePath: string): string {
   return basename(filePath)
+}
+
+/**
+ * Get encoder-specific quality/preset args for the detected HW encoder.
+ * mode: 'fast' = prioritize speed (for quick conversions), 'balanced' = balance quality/speed
+ */
+function getEncoderArgs(encoder: string, mode: 'fast' | 'balanced'): string[] {
+  switch (encoder) {
+    case 'h264_nvenc':
+      return mode === 'fast'
+        ? ['-preset', 'p1', '-cq', '28']
+        : ['-preset', 'p4', '-cq', '23']
+    case 'h264_amf':
+      return mode === 'fast'
+        ? ['-quality', 'speed', '-rc', 'cqp', '-qp', '28']
+        : ['-quality', 'balanced', '-rc', 'cqp', '-qp', '23']
+    case 'h264_qsv':
+      return mode === 'fast'
+        ? ['-preset', 'veryfast', '-global_quality', '28']
+        : ['-preset', 'medium', '-global_quality', '23']
+    case 'h264_videotoolbox':
+      return mode === 'fast'
+        ? ['-q:v', '65']
+        : ['-q:v', '50']
+    default: // libx264
+      return mode === 'fast'
+        ? ['-preset', 'ultrafast', '-crf', '28']
+        : ['-preset', 'fast', '-crf', '23']
+  }
 }
 
 // ffmpeg and ffprobe paths are resolved via BinaryPaths module

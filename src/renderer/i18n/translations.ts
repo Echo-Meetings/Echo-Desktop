@@ -121,6 +121,23 @@ export interface Translations {
   revealInFileManager: string
   change: string
   storageUsed: string
+
+  // Backup & Restore
+  backupSection: string
+  backupDirectory: string
+  backupDirectoryNotSet: string
+  backupChangeDirectory: string
+  createBackup: string
+  restoreFromBackup: string
+  backupInProgress: string
+  restoreInProgress: string
+  backupComplete: string
+  restoreComplete: string
+  backupFailed: string
+  restoreFailed: string
+  backupConfirmRestore: string
+  backupNoManifest: string
+
   privacySection: string
   privacyDesc: string
   privacyConsent: string
@@ -191,6 +208,7 @@ export interface Translations {
   diagnosticsMissing: string
   diagnosticsReinstall: string
   diagnosticsReinstallConfirm: string
+  diagnosticsReinstallFFmpegConfirm: string
   diagnosticsReinstalling: string
   diagnosticsDownloadVcRuntime: string
 
@@ -218,11 +236,20 @@ export interface Translations {
   modelLargeV3Turbo: string
   modelLargeV3TurboQ5: string
 
+  // Model categories
+  modelCategoryTranscription: string
+  modelCategoryMeetingNotes: string
+
   // Hardware
   hardwareSection: string
   cpuCores: string
   totalMemory: string
+  memoryUsage: string
   threadsUsed: string
+
+  // Session History
+  sessionHistorySection: string
+  sessionAudio: string
 
   // Performance
   performanceSection: string
@@ -232,6 +259,12 @@ export interface Translations {
   gpuNotDetected: string
   gpuCpuFallback: string
   gpuBinaryNotSupported: string
+  gpuVendor: string
+  gpuDriverVersion: string
+  gpuBackendLabel: string
+  gpuCudaAvailable: string
+  gpuCudaNotAvailable: string
+  gpuRecommendedBackend: string
   accelerationMode: string
   accelerationGpu: string
   accelerationCpu: string
@@ -364,6 +397,20 @@ export const translations: Record<UILocale, Translations> = {
     revealInFileManager: 'Show in File Manager',
     change: 'Change...',
     storageUsed: 'Storage used',
+    backupSection: 'BACKUP & RESTORE',
+    backupDirectory: 'Backup folder',
+    backupDirectoryNotSet: 'Not configured',
+    backupChangeDirectory: 'Change...',
+    createBackup: 'Create Backup',
+    restoreFromBackup: 'Restore from Backup',
+    backupInProgress: 'Backing up... {progress}%',
+    restoreInProgress: 'Restoring... {progress}%',
+    backupComplete: 'Backup complete: {count} entries ({size})',
+    restoreComplete: 'Restore complete: {count} restored, {skipped} skipped',
+    backupFailed: 'Backup failed: {error}',
+    restoreFailed: 'Restore failed: {error}',
+    backupConfirmRestore: 'Restore {count} entries ({size}) from this backup? Existing entries will be skipped.',
+    backupNoManifest: 'No valid Echo backup found in the selected folder.',
     privacySection: 'PRIVACY & LEGAL',
     privacyDesc: 'All processing happens locally on your device. No data is sent to any server.',
     privacyConsent: 'Privacy consent',
@@ -428,6 +475,7 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsMissing: 'Missing: {dlls}',
     diagnosticsReinstall: 'Reinstall',
     diagnosticsReinstallConfirm: 'This will delete the whisper-cli binary and re-download it. Continue?',
+    diagnosticsReinstallFFmpegConfirm: 'This will re-download ffmpeg. Continue?',
     diagnosticsReinstalling: 'Reinstalling...',
     diagnosticsDownloadVcRuntime: 'Download',
     remaining: 'remaining',
@@ -450,10 +498,15 @@ export const translations: Record<UILocale, Translations> = {
     modelMedium: 'Medium',
     modelLargeV3Turbo: 'Large V3 Turbo',
     modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    modelCategoryTranscription: 'TRANSCRIPTION',
+    modelCategoryMeetingNotes: 'MEETING NOTES',
     hardwareSection: 'Hardware',
     cpuCores: 'CPU Cores',
     totalMemory: 'Total Memory',
+    memoryUsage: 'RAM Usage',
     threadsUsed: 'Threads Used',
+    sessionHistorySection: 'SESSION HISTORY',
+    sessionAudio: 'audio',
     performanceSection: 'Performance',
     gpuAcceleration: 'GPU Acceleration',
     gpuName: 'GPU',
@@ -461,6 +514,12 @@ export const translations: Record<UILocale, Translations> = {
     gpuNotDetected: 'Not detected',
     gpuCpuFallback: 'CPU fallback',
     gpuBinaryNotSupported: 'Binary does not support GPU',
+    gpuVendor: 'Vendor',
+    gpuDriverVersion: 'Driver',
+    gpuBackendLabel: 'Backend',
+    gpuCudaAvailable: 'CUDA available',
+    gpuCudaNotAvailable: 'CUDA not available',
+    gpuRecommendedBackend: 'Recommended',
     accelerationMode: 'Acceleration',
     accelerationGpu: 'GPU',
     accelerationCpu: 'CPU',
@@ -589,6 +648,20 @@ export const translations: Record<UILocale, Translations> = {
     revealInFileManager: 'Показать в файловом менеджере',
     change: 'Изменить...',
     storageUsed: 'Использовано',
+    backupSection: 'РЕЗЕРВНОЕ КОПИРОВАНИЕ',
+    backupDirectory: 'Папка для бэкапов',
+    backupDirectoryNotSet: 'Не выбрана',
+    backupChangeDirectory: 'Изменить...',
+    createBackup: 'Создать бэкап',
+    restoreFromBackup: 'Восстановить из бэкапа',
+    backupInProgress: 'Создание бэкапа... {progress}%',
+    restoreInProgress: 'Восстановление... {progress}%',
+    backupComplete: 'Бэкап создан: {count} записей ({size})',
+    restoreComplete: 'Восстановлено: {count}, пропущено: {skipped}',
+    backupFailed: 'Ошибка бэкапа: {error}',
+    restoreFailed: 'Ошибка восстановления: {error}',
+    backupConfirmRestore: 'Восстановить {count} записей ({size}) из этого бэкапа? Существующие записи будут пропущены.',
+    backupNoManifest: 'В выбранной папке не найден бэкап Echo.',
     privacySection: 'КОНФИДЕНЦИАЛЬНОСТЬ',
     privacyDesc: 'Вся обработка происходит локально на вашем устройстве. Никакие данные не отправляются на сервер.',
     privacyConsent: 'Согласие на конфиденциальность',
@@ -653,6 +726,7 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsMissing: 'Отсутствуют: {dlls}',
     diagnosticsReinstall: 'Переустановить',
     diagnosticsReinstallConfirm: 'Бинарник whisper-cli будет удалён и скачан заново. Продолжить?',
+    diagnosticsReinstallFFmpegConfirm: 'ffmpeg будет скачан заново. Продолжить?',
     diagnosticsReinstalling: 'Переустановка...',
     diagnosticsDownloadVcRuntime: 'Скачать',
     remaining: 'осталось',
@@ -675,10 +749,15 @@ export const translations: Record<UILocale, Translations> = {
     modelMedium: 'Medium',
     modelLargeV3Turbo: 'Large V3 Turbo',
     modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    modelCategoryTranscription: 'ТРАНСКРИПЦИЯ',
+    modelCategoryMeetingNotes: 'ЗАМЕТКИ СОВЕЩАНИЙ',
     hardwareSection: 'Оборудование',
     cpuCores: 'Ядра CPU',
     totalMemory: 'Общая память',
+    memoryUsage: 'Использование RAM',
     threadsUsed: 'Используемые потоки',
+    sessionHistorySection: 'ИСТОРИЯ СЕССИЙ',
+    sessionAudio: 'аудио',
     performanceSection: 'Производительность',
     gpuAcceleration: 'Ускорение GPU',
     gpuName: 'GPU',
@@ -686,6 +765,12 @@ export const translations: Record<UILocale, Translations> = {
     gpuNotDetected: 'Не обнаружен',
     gpuCpuFallback: 'Режим CPU',
     gpuBinaryNotSupported: 'Бинарник не поддерживает GPU',
+    gpuVendor: 'Производитель',
+    gpuDriverVersion: 'Драйвер',
+    gpuBackendLabel: 'Бэкенд',
+    gpuCudaAvailable: 'CUDA доступен',
+    gpuCudaNotAvailable: 'CUDA недоступен',
+    gpuRecommendedBackend: 'Рекомендуемый',
     accelerationMode: 'Ускорение',
     accelerationGpu: 'GPU',
     accelerationCpu: 'CPU',
@@ -814,6 +899,20 @@ export const translations: Record<UILocale, Translations> = {
     revealInFileManager: 'Im Dateimanager anzeigen',
     change: 'Ändern...',
     storageUsed: 'Speicher belegt',
+    backupSection: 'SICHERUNG & WIEDERHERSTELLUNG',
+    backupDirectory: 'Sicherungsordner',
+    backupDirectoryNotSet: 'Nicht konfiguriert',
+    backupChangeDirectory: 'Ändern...',
+    createBackup: 'Sicherung erstellen',
+    restoreFromBackup: 'Aus Sicherung wiederherstellen',
+    backupInProgress: 'Sicherung läuft... {progress}%',
+    restoreInProgress: 'Wiederherstellung... {progress}%',
+    backupComplete: 'Sicherung abgeschlossen: {count} Einträge ({size})',
+    restoreComplete: 'Wiederherstellung abgeschlossen: {count} wiederhergestellt, {skipped} übersprungen',
+    backupFailed: 'Sicherung fehlgeschlagen: {error}',
+    restoreFailed: 'Wiederherstellung fehlgeschlagen: {error}',
+    backupConfirmRestore: '{count} Einträge ({size}) aus dieser Sicherung wiederherstellen? Vorhandene Einträge werden übersprungen.',
+    backupNoManifest: 'Kein gültiges Echo-Backup im ausgewählten Ordner gefunden.',
     privacySection: 'DATENSCHUTZ & RECHT',
     privacyDesc: 'Die gesamte Verarbeitung erfolgt lokal auf Ihrem Gerät. Es werden keine Daten an Server gesendet.',
     privacyConsent: 'Datenschutz-Einwilligung',
@@ -878,6 +977,7 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsMissing: 'Fehlend: {dlls}',
     diagnosticsReinstall: 'Neu installieren',
     diagnosticsReinstallConfirm: 'whisper-cli wird gelöscht und neu heruntergeladen. Fortfahren?',
+    diagnosticsReinstallFFmpegConfirm: 'ffmpeg wird neu heruntergeladen. Fortfahren?',
     diagnosticsReinstalling: 'Neu installieren...',
     diagnosticsDownloadVcRuntime: 'Herunterladen',
     remaining: 'verbleibend',
@@ -900,10 +1000,15 @@ export const translations: Record<UILocale, Translations> = {
     modelMedium: 'Medium',
     modelLargeV3Turbo: 'Large V3 Turbo',
     modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    modelCategoryTranscription: 'TRANSKRIPTION',
+    modelCategoryMeetingNotes: 'MEETING-NOTIZEN',
     hardwareSection: 'Hardware',
     cpuCores: 'CPU-Kerne',
     totalMemory: 'Gesamtspeicher',
+    memoryUsage: 'RAM-Nutzung',
     threadsUsed: 'Verwendete Threads',
+    sessionHistorySection: 'SITZUNGSVERLAUF',
+    sessionAudio: 'Audio',
     performanceSection: 'Leistung',
     gpuAcceleration: 'GPU-Beschleunigung',
     gpuName: 'GPU',
@@ -911,6 +1016,12 @@ export const translations: Record<UILocale, Translations> = {
     gpuNotDetected: 'Nicht erkannt',
     gpuCpuFallback: 'CPU-Modus',
     gpuBinaryNotSupported: 'Binärdatei unterstützt keine GPU',
+    gpuVendor: 'Hersteller',
+    gpuDriverVersion: 'Treiber',
+    gpuBackendLabel: 'Backend',
+    gpuCudaAvailable: 'CUDA verfügbar',
+    gpuCudaNotAvailable: 'CUDA nicht verfügbar',
+    gpuRecommendedBackend: 'Empfohlen',
     accelerationMode: 'Beschleunigung',
     accelerationGpu: 'GPU',
     accelerationCpu: 'CPU',
@@ -1039,6 +1150,20 @@ export const translations: Record<UILocale, Translations> = {
     revealInFileManager: 'Ouvrir dans le gestionnaire de fichiers',
     change: 'Modifier...',
     storageUsed: 'Espace utilisé',
+    backupSection: 'SAUVEGARDE & RESTAURATION',
+    backupDirectory: 'Dossier de sauvegarde',
+    backupDirectoryNotSet: 'Non configuré',
+    backupChangeDirectory: 'Modifier...',
+    createBackup: 'Créer une sauvegarde',
+    restoreFromBackup: 'Restaurer depuis une sauvegarde',
+    backupInProgress: 'Sauvegarde en cours... {progress}%',
+    restoreInProgress: 'Restauration en cours... {progress}%',
+    backupComplete: 'Sauvegarde terminée : {count} entrées ({size})',
+    restoreComplete: 'Restauration terminée : {count} restaurées, {skipped} ignorées',
+    backupFailed: 'Échec de la sauvegarde : {error}',
+    restoreFailed: 'Échec de la restauration : {error}',
+    backupConfirmRestore: 'Restaurer {count} entrées ({size}) depuis cette sauvegarde ? Les entrées existantes seront ignorées.',
+    backupNoManifest: 'Aucune sauvegarde Echo valide trouvée dans le dossier sélectionné.',
     privacySection: 'CONFIDENTIALITÉ & JURIDIQUE',
     privacyDesc: "Tout le traitement s'effectue localement sur votre appareil. Aucune donnée n'est envoyée à un serveur.",
     privacyConsent: 'Consentement de confidentialité',
@@ -1103,6 +1228,7 @@ export const translations: Record<UILocale, Translations> = {
     diagnosticsMissing: 'Manquants : {dlls}',
     diagnosticsReinstall: 'Réinstaller',
     diagnosticsReinstallConfirm: 'whisper-cli sera supprimé et retéléchargé. Continuer ?',
+    diagnosticsReinstallFFmpegConfirm: 'ffmpeg sera retéléchargé. Continuer ?',
     diagnosticsReinstalling: 'Réinstallation...',
     diagnosticsDownloadVcRuntime: 'Télécharger',
     remaining: 'restant',
@@ -1125,10 +1251,15 @@ export const translations: Record<UILocale, Translations> = {
     modelMedium: 'Medium',
     modelLargeV3Turbo: 'Large V3 Turbo',
     modelLargeV3TurboQ5: 'Large V3 Turbo (Q5)',
+    modelCategoryTranscription: 'TRANSCRIPTION',
+    modelCategoryMeetingNotes: 'NOTES DE RÉUNION',
     hardwareSection: 'Matériel',
     cpuCores: 'Cœurs CPU',
     totalMemory: 'Mémoire totale',
+    memoryUsage: 'Utilisation RAM',
     threadsUsed: 'Threads utilisés',
+    sessionHistorySection: 'HISTORIQUE DES SESSIONS',
+    sessionAudio: 'audio',
     performanceSection: 'Performance',
     gpuAcceleration: 'Accélération GPU',
     gpuName: 'GPU',
@@ -1136,6 +1267,12 @@ export const translations: Record<UILocale, Translations> = {
     gpuNotDetected: 'Non détecté',
     gpuCpuFallback: 'Mode CPU',
     gpuBinaryNotSupported: 'Le binaire ne supporte pas le GPU',
+    gpuVendor: 'Fabricant',
+    gpuDriverVersion: 'Pilote',
+    gpuBackendLabel: 'Backend',
+    gpuCudaAvailable: 'CUDA disponible',
+    gpuCudaNotAvailable: 'CUDA non disponible',
+    gpuRecommendedBackend: 'Recommandé',
     accelerationMode: 'Accélération',
     accelerationGpu: 'GPU',
     accelerationCpu: 'CPU',

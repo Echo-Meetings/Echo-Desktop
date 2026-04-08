@@ -18,7 +18,7 @@ interface DiagnosticResult {
   whisperPath: string | null
   ffmpegPath: string | null
   whisperVersion: string
-  gpuBackend: 'vulkan' | 'metal' | 'none'
+  gpuBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
 }
 
 interface SettingsProps {
@@ -41,25 +41,44 @@ export function Settings({ onClose }: SettingsProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion?: string; releaseUrl?: string }>({})
   const [diagnostics, setDiagnostics] = useState<DiagnosticResult | null>(null)
   const [reinstalling, setReinstalling] = useState(false)
+  const [reinstallingFFmpeg, setReinstallingFFmpeg] = useState(false)
   const [availableModels, setAvailableModels] = useState<Array<{
     id: string; filename: string; sizeBytes: number; ramRequiredMB: number
     labelKey: string; accuracy: string; speedMultiplier: number; multilingual: boolean
+    category: string
   }>>([])
   const [downloadedModels, setDownloadedModels] = useState<Record<string, boolean>>({})
   const [activeModelId, setActiveModelId] = useState('large-v3-turbo')
   const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null)
+  const [downloadEta, setDownloadEta] = useState<number | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState(0)
   const [hardwareInfo, setHardwareInfo] = useState<{
-    cpuCores: number; totalMemoryMB: number; optimalThreads: number
-    gpu: { available: boolean; backend: 'metal' | 'vulkan' | 'none'; name: string | null; vramMB: number | null }
-    gpuBinarySupport: 'vulkan' | 'metal' | 'none'
+    cpuCores: number; totalMemoryMB: number; freeMemoryMB: number; optimalThreads: number
+    gpu: {
+      available: boolean; backend: 'cuda' | 'metal' | 'vulkan' | 'none'
+      vendor: 'nvidia' | 'amd' | 'intel' | 'apple' | 'unknown'
+      name: string | null; vramMB: number | null
+      cudaAvailable: boolean; vulkanAvailable: boolean; driverVersion: string | null
+    }
+    gpuBinarySupport: 'cuda' | 'vulkan' | 'metal' | 'none'
     gpuEffective: boolean
+    recommendedBackend: 'cuda' | 'vulkan' | 'metal' | 'none'
   } | null>(null)
+  const [sessionHistory, setSessionHistory] = useState<Array<{
+    id: string; fileName: string; createdAt: string
+    audioDuration: number | null; transcriptionDuration: number | null
+  }>>([])
+
   const [recommendedModel, setRecommendedModel] = useState<string | null>(null)
   const [accelerationMode, setAccelerationMode] = useState<'gpu' | 'cpu'>('gpu')
   const [flashAttention, setFlashAttention] = useState(true)
   const [threadCount, setThreadCount] = useState<'auto' | number>('auto')
   const [logContent, setLogContent] = useState<string | null>(null)
   const [logLoading, setLogLoading] = useState(false)
+  const [backupDir, setBackupDir] = useState('')
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'backing-up' | 'restoring' | 'done' | 'error'>('idle')
+  const [backupProgress, setBackupProgress] = useState(0)
+  const [backupMessage, setBackupMessage] = useState('')
 
   const sections: Array<{ id: SectionId; label: string }> = [
     { id: 'general', label: t.generalSection },
@@ -97,9 +116,40 @@ export function Settings({ onClose }: SettingsProps) {
     window.electronAPI.model.getActiveModelId().then(setActiveModelId)
     window.electronAPI.hardware.getInfo().then(setHardwareInfo)
     window.electronAPI.hardware.getRecommendedModel().then(setRecommendedModel)
+    window.electronAPI.history.getAll().then((entries: unknown[]) => {
+      const sorted = (entries as Array<{
+        id: string; fileName: string; createdAt: string
+        audioDuration: number | null; transcriptionDuration: number | null
+      }>)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 10)
+      setSessionHistory(sorted)
+    })
     window.electronAPI.settings.get('accelerationMode').then((v) => setAccelerationMode((v as 'gpu' | 'cpu') || 'gpu'))
     window.electronAPI.settings.get('flashAttention').then((v) => setFlashAttention(v !== false))
     window.electronAPI.settings.get('threadCount').then((v) => setThreadCount((v as 'auto' | number) || 'auto'))
+    window.electronAPI.settings.getBackupDirectory().then(setBackupDir)
+  }, [])
+
+  useEffect(() => {
+    const unsub = window.electronAPI.on('backup:progress', (fraction) => {
+      setBackupProgress(Math.round((fraction as number) * 100))
+    })
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    const unsub1 = window.electronAPI.on('model:downloadDetailedProgress', (info) => {
+      const p = info as { fraction: number; etaSeconds: number | null }
+      setDownloadProgress(Math.round(p.fraction * 100))
+      setDownloadEta(p.etaSeconds)
+    })
+    const unsub2 = window.electronAPI.on('model:downloadCancelled', () => {
+      setDownloadingModelId(null)
+      setDownloadEta(null)
+      setDownloadProgress(0)
+    })
+    return () => { unsub1(); unsub2() }
   }, [])
 
   const handleLanguageChange = async (code: string) => {
@@ -137,14 +187,25 @@ export function Settings({ onClose }: SettingsProps) {
   const handleSelectModel = async (modelId: string) => {
     if (!downloadedModels[modelId]) {
       setDownloadingModelId(modelId)
+      setDownloadProgress(0)
+      setDownloadEta(null)
       await window.electronAPI.model.downloadById(modelId)
       setDownloadingModelId(null)
+      setDownloadEta(null)
+      setDownloadProgress(0)
       const updated = await window.electronAPI.model.getDownloadedModels()
       setDownloadedModels(updated)
     }
     setActiveModelId(modelId)
     await window.electronAPI.model.setActiveModelId(modelId)
     await window.electronAPI.settings.set('activeModel', modelId)
+  }
+
+  const handleCancelDownload = async () => {
+    await window.electronAPI.model.cancelDownload()
+    setDownloadingModelId(null)
+    setDownloadEta(null)
+    setDownloadProgress(0)
   }
 
   const handleDeleteSpecificModel = async (modelId: string) => {
@@ -183,6 +244,15 @@ export function Settings({ onClose }: SettingsProps) {
     setReinstalling(false)
   }
 
+  const handleReinstallFFmpeg = async () => {
+    if (!confirm(t.diagnosticsReinstallFFmpegConfirm)) return
+    setReinstallingFFmpeg(true)
+    await window.electronAPI.deps.downloadFFmpeg()
+    const diag = await window.electronAPI.deps.diagnose()
+    setDiagnostics(diag)
+    setReinstallingFFmpeg(false)
+  }
+
   const handleAccelerationChange = async (mode: 'gpu' | 'cpu') => {
     setAccelerationMode(mode)
     await window.electronAPI.settings.set('accelerationMode', mode)
@@ -196,6 +266,60 @@ export function Settings({ onClose }: SettingsProps) {
   const handleThreadCountChange = async (value: 'auto' | number) => {
     setThreadCount(value)
     await window.electronAPI.settings.set('threadCount', value)
+  }
+
+  const handleChangeBackupDir = async () => {
+    const path = await window.electronAPI.settings.openDirectoryPicker()
+    if (path) {
+      await window.electronAPI.settings.setBackupDirectory(path)
+      setBackupDir(path)
+    }
+  }
+
+  const handleCreateBackup = async () => {
+    setBackupStatus('backing-up')
+    setBackupProgress(0)
+    setBackupMessage('')
+    const result = await window.electronAPI.settings.createBackup()
+    if (result.success) {
+      setBackupStatus('done')
+      setBackupMessage(fmt(t.backupComplete, { count: String(result.entryCount || 0), size: formatSize(result.totalSize || 0) }))
+    } else {
+      setBackupStatus('error')
+      setBackupMessage(fmt(t.backupFailed, { error: result.error || 'Unknown error' }))
+    }
+    setTimeout(() => setBackupStatus('idle'), 5000)
+  }
+
+  const handleRestoreBackup = async () => {
+    const dirPath = await window.electronAPI.settings.openDirectoryPicker()
+    if (!dirPath) return
+
+    const manifestResult = await window.electronAPI.settings.readBackupManifest(dirPath)
+    if (manifestResult.error || !manifestResult.manifest) {
+      alert(t.backupNoManifest)
+      return
+    }
+
+    const m = manifestResult.manifest
+    if (!confirm(fmt(t.backupConfirmRestore, { count: String(m.entryCount), size: formatSize(m.totalSizeBytes) }))) return
+
+    setBackupStatus('restoring')
+    setBackupProgress(0)
+    setBackupMessage('')
+    const result = await window.electronAPI.settings.restoreBackup(dirPath)
+    if (result.success) {
+      setBackupStatus('done')
+      setBackupMessage(fmt(t.restoreComplete, { count: String(result.restoredCount || 0), skipped: String(result.skippedCount || 0) }))
+      // Refresh history and storage size
+      const entries = await window.electronAPI.history.getAll()
+      useAppStore.getState().setHistoryEntries(entries as any[])
+      window.electronAPI.settings.getStorageSize().then(setStorageSize)
+    } else {
+      setBackupStatus('error')
+      setBackupMessage(fmt(t.restoreFailed, { error: result.error || 'Unknown error' }))
+    }
+    setTimeout(() => setBackupStatus('idle'), 5000)
   }
 
   const handleViewPrivacy = () => {
@@ -247,31 +371,117 @@ export function Settings({ onClose }: SettingsProps) {
 
       case 'storage':
         return (
-          <div style={styles.card}>
-            <div style={styles.cardRow}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={styles.rowLabel}>{t.transcriptsAndMedia}</div>
-                <div style={styles.storagePath}>{storageDir}</div>
+          <>
+            <div style={styles.card}>
+              <div style={styles.cardRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={styles.rowLabel}>{t.transcriptsAndMedia}</div>
+                  <div style={styles.storagePath}>{storageDir}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
+                <Button size="small" onClick={handleRevealStorage}>{t.revealInFileManager}</Button>
+                <Button size="small" onClick={handleChangeStorage}>{t.change}</Button>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={styles.cardRow}>
+                <div style={styles.rowLabel}>{t.storageUsed}</div>
+                <div style={styles.rowValue}>{formatSize(storageSize)}</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
-              <Button size="small" onClick={handleRevealStorage}>{t.revealInFileManager}</Button>
-              <Button size="small" onClick={handleChangeStorage}>{t.change}</Button>
+
+            <div style={styles.subSectionHeader}>{t.backupSection}</div>
+            <div style={styles.card}>
+              <div style={styles.cardRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={styles.rowLabel}>{t.backupDirectory}</div>
+                  <div style={styles.storagePath}>{backupDir || t.backupDirectoryNotSet}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
+                <Button size="small" onClick={handleChangeBackupDir}>{t.backupChangeDirectory}</Button>
+              </div>
+              <div style={styles.cardDivider} />
+              <div style={{ display: 'flex', gap: 8, padding: '6px 0' }}>
+                <Button
+                  size="small"
+                  onClick={handleCreateBackup}
+                  disabled={!backupDir || backupStatus === 'backing-up' || backupStatus === 'restoring'}
+                >
+                  {t.createBackup}
+                </Button>
+                <Button
+                  size="small"
+                  onClick={handleRestoreBackup}
+                  disabled={backupStatus === 'backing-up' || backupStatus === 'restoring'}
+                >
+                  {t.restoreFromBackup}
+                </Button>
+              </div>
+              {(backupStatus === 'backing-up' || backupStatus === 'restoring') && (
+                <>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.rowDesc}>
+                    {fmt(backupStatus === 'backing-up' ? t.backupInProgress : t.restoreInProgress, { progress: String(backupProgress) })}
+                  </div>
+                  <div style={{
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: 'var(--color-border)',
+                    overflow: 'hidden',
+                    marginTop: 4,
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${backupProgress}%`,
+                      backgroundColor: 'var(--color-foreground)',
+                      borderRadius: 2,
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                </>
+              )}
+              {(backupStatus === 'done' || backupStatus === 'error') && (
+                <>
+                  <div style={styles.cardDivider} />
+                  <div style={{
+                    fontSize: 12,
+                    color: backupStatus === 'done' ? '#22c55e' : '#ef4444',
+                    padding: '6px 0',
+                    lineHeight: 1.5,
+                  }}>
+                    {backupMessage}
+                  </div>
+                </>
+              )}
             </div>
-            <div style={styles.cardDivider} />
-            <div style={styles.cardRow}>
-              <div style={styles.rowLabel}>{t.storageUsed}</div>
-              <div style={styles.rowValue}>{formatSize(storageSize)}</div>
-            </div>
-          </div>
+          </>
         )
 
-      case 'model':
+      case 'model': {
+        const categories = [...new Set(availableModels.map(m => m.category || 'transcription'))]
+        const categoryLabels: Record<string, string> = {
+          'transcription': t.modelCategoryTranscription,
+          'meeting-notes': t.modelCategoryMeetingNotes
+        }
         return (
-          <div style={styles.card}>
-            <div style={styles.rowDesc}>{t.modelPickerDesc}</div>
-            <div style={styles.cardDivider} />
-            {availableModels.map((model, idx) => {
+          <>
+          {categories.map(category => {
+            const models = availableModels.filter(m => (m.category || 'transcription') === category)
+            if (models.length === 0) return null
+            return (
+              <div key={category}>
+                {categories.length > 1 && (
+                  <div style={styles.subSectionHeader}>{categoryLabels[category] || category}</div>
+                )}
+                <div style={styles.card}>
+                  {category === categories[0] && (
+                    <>
+                      <div style={styles.rowDesc}>{t.modelPickerDesc}</div>
+                      <div style={styles.cardDivider} />
+                    </>
+                  )}
+            {models.map((model, idx) => {
               const isActive = model.id === activeModelId
               const isDownloaded = downloadedModels[model.id]
               const isDownloading = downloadingModelId === model.id
@@ -315,7 +525,31 @@ export function Settings({ onClose }: SettingsProps) {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       {isDownloading ? (
-                        <span style={{ fontSize: 12, color: 'var(--color-secondary)' }}>{t.modelDownloading}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontSize: 12, color: 'var(--color-secondary)' }}>
+                              {downloadProgress}%
+                              {downloadEta !== null && downloadEta > 0 && (
+                                <span> — {downloadEta >= 60 ? `${Math.floor(downloadEta / 60)}m ${downloadEta % 60}s` : `${downloadEta}s`}</span>
+                              )}
+                            </span>
+                            <div style={{
+                              marginTop: 3, width: 80, height: 4, borderRadius: 2,
+                              backgroundColor: 'var(--color-highlight)', overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                height: '100%', borderRadius: 2, width: `${downloadProgress}%`,
+                                backgroundColor: '#22c55e', transition: 'width 0.3s ease'
+                              }} />
+                            </div>
+                          </div>
+                          <Button size="small" variant="destructive" onClick={(e) => {
+                            e.stopPropagation()
+                            handleCancelDownload()
+                          }}>
+                            {t.cancel}
+                          </Button>
+                        </div>
                       ) : isDownloaded ? (
                         <>
                           <span style={{ fontSize: 12, color: '#22c55e' }}>{t.modelDownloaded}</span>
@@ -336,8 +570,13 @@ export function Settings({ onClose }: SettingsProps) {
                 </div>
               )
             })}
-          </div>
+                </div>
+              </div>
+            )
+          })}
+          </>
         )
+      }
 
       case 'system':
         return (
@@ -355,6 +594,26 @@ export function Settings({ onClose }: SettingsProps) {
                   <div style={styles.cardRow}>
                     <div style={styles.rowLabel}>{t.totalMemory}</div>
                     <div style={styles.rowValue}>{formatSize(hardwareInfo.totalMemoryMB * 1024 * 1024)}</div>
+                  </div>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.cardRow}>
+                    <div>
+                      <div style={styles.rowLabel}>{t.memoryUsage}</div>
+                      <div style={{
+                        marginTop: 4, width: 180, height: 6, borderRadius: 3,
+                        backgroundColor: 'var(--color-highlight)', overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          height: '100%', borderRadius: 3,
+                          width: `${Math.round(((hardwareInfo.totalMemoryMB - hardwareInfo.freeMemoryMB) / hardwareInfo.totalMemoryMB) * 100)}%`,
+                          backgroundColor: ((hardwareInfo.totalMemoryMB - hardwareInfo.freeMemoryMB) / hardwareInfo.totalMemoryMB) > 0.85 ? '#ef4444' : '#22c55e',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                    </div>
+                    <div style={styles.rowValue}>
+                      {formatSize((hardwareInfo.totalMemoryMB - hardwareInfo.freeMemoryMB) * 1024 * 1024)} / {formatSize(hardwareInfo.totalMemoryMB * 1024 * 1024)}
+                    </div>
                   </div>
                   <div style={styles.cardDivider} />
                   <div style={styles.cardRow}>
@@ -385,8 +644,20 @@ export function Settings({ onClose }: SettingsProps) {
                       backgroundColor: hardwareInfo.gpuEffective ? 'rgba(34,197,94,0.1)' : 'var(--color-highlight)',
                     }}>
                       {hardwareInfo.gpuEffective
-                        ? `${hardwareInfo.gpu.backend === 'metal' ? 'Metal' : 'Vulkan'} — ${t.gpuActive}`
+                        ? `${hardwareInfo.gpuBinarySupport === 'cuda' ? 'CUDA' : hardwareInfo.gpuBinarySupport === 'metal' ? 'Metal' : 'Vulkan'} — ${t.gpuActive}`
                         : t.gpuBinaryNotSupported}
+                    </span>
+                  )}
+                  {hardwareInfo?.gpu.vendor === 'nvidia' && (
+                    <span style={{
+                      fontSize: 11,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      fontWeight: 500,
+                      color: hardwareInfo.gpu.cudaAvailable ? '#22c55e' : 'var(--color-secondary)',
+                      backgroundColor: hardwareInfo.gpu.cudaAvailable ? 'rgba(34,197,94,0.1)' : 'var(--color-highlight)',
+                    }}>
+                      {hardwareInfo.gpu.cudaAvailable ? t.gpuCudaAvailable : t.gpuCudaNotAvailable}
                     </span>
                   )}
                 </div>
@@ -397,6 +668,15 @@ export function Settings({ onClose }: SettingsProps) {
                   <div style={styles.cardRow}>
                     <div style={styles.rowLabel}>{t.vram}</div>
                     <div style={styles.rowValue}>{formatSize(hardwareInfo.gpu.vramMB * 1024 * 1024)}</div>
+                  </div>
+                </>
+              )}
+              {hardwareInfo?.gpu.driverVersion && (
+                <>
+                  <div style={styles.cardDivider} />
+                  <div style={styles.cardRow}>
+                    <div style={styles.rowLabel}>{t.gpuDriverVersion}</div>
+                    <div style={styles.rowValue}>{hardwareInfo.gpu.driverVersion}</div>
                   </div>
                 </>
               )}
@@ -524,22 +804,25 @@ export function Settings({ onClose }: SettingsProps) {
                   }}>
                     {diagnostics?.whisperInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
                   </span>
-                  {diagnostics?.platform === 'win32' && (
-                    <Button size="small" onClick={handleReinstallWhisper} disabled={reinstalling}>
-                      {reinstalling ? t.diagnosticsReinstalling : t.diagnosticsReinstall}
-                    </Button>
-                  )}
+                  <Button size="small" onClick={handleReinstallWhisper} disabled={reinstalling}>
+                    {reinstalling ? t.diagnosticsReinstalling : t.diagnosticsReinstall}
+                  </Button>
                 </div>
               </div>
               <div style={styles.cardDivider} />
               <div style={styles.cardRow}>
                 <div style={styles.rowLabel}>{t.diagnosticsFfmpeg}</div>
-                <span style={{
-                  fontSize: 13,
-                  color: diagnostics?.ffmpegInstalled ? '#22c55e' : '#ef4444',
-                }}>
-                  {diagnostics?.ffmpegInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontSize: 13,
+                    color: diagnostics?.ffmpegInstalled ? '#22c55e' : '#ef4444',
+                  }}>
+                    {diagnostics?.ffmpegInstalled ? t.diagnosticsInstalled : t.diagnosticsNotFound}
+                  </span>
+                  <Button size="small" onClick={handleReinstallFFmpeg} disabled={reinstallingFFmpeg}>
+                    {reinstallingFFmpeg ? t.diagnosticsReinstalling : t.diagnosticsReinstall}
+                  </Button>
+                </div>
               </div>
               {diagnostics?.platform === 'win32' && (
                 <>
@@ -590,6 +873,50 @@ export function Settings({ onClose }: SettingsProps) {
                 <div style={styles.rowValue}>{diagnostics?.whisperVersion || '—'}</div>
               </div>
             </div>
+
+            {/* Session History */}
+            {sessionHistory.length > 0 && (
+              <>
+                <div style={styles.subSectionHeader}>{t.sessionHistorySection}</div>
+                <div style={styles.card}>
+                  {(() => {
+                    const maxDuration = Math.max(...sessionHistory.map(s => s.transcriptionDuration || 0), 1)
+                    return sessionHistory.map((session, i) => (
+                      <div key={session.id}>
+                        {i > 0 && <div style={styles.cardDivider} />}
+                        <div style={{ padding: '6px 0' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, color: 'var(--color-foreground)', fontWeight: 500, maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {session.fileName}
+                            </span>
+                            <span style={{ fontSize: 11, color: 'var(--color-secondary)' }}>
+                              {new Date(session.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{
+                              flex: 1, height: 4, borderRadius: 2,
+                              backgroundColor: 'var(--color-highlight)', overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                height: '100%', borderRadius: 2,
+                                width: `${Math.round(((session.transcriptionDuration || 0) / maxDuration) * 100)}%`,
+                                backgroundColor: 'var(--color-foreground)',
+                                opacity: 0.6
+                              }} />
+                            </div>
+                            <span style={{ fontSize: 11, color: 'var(--color-secondary)', minWidth: 80, textAlign: 'right' }}>
+                              {session.audioDuration ? `${Math.round(session.audioDuration)}s ${t.sessionAudio}` : '—'}
+                              {session.transcriptionDuration ? ` → ${Math.round(session.transcriptionDuration)}s` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  })()}
+                </div>
+              </>
+            )}
 
             {/* Logs */}
             <div style={styles.subSectionHeader}>{t.logsSection}</div>
@@ -650,8 +977,14 @@ export function Settings({ onClose }: SettingsProps) {
                   textAlign: 'right' as const,
                   lineHeight: 1.6,
                 }}>
-                  <div>{t.whisperCredit}</div>
-                  <div>{t.ffmpegCredit}</div>
+                  <div
+                    style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--color-border)' }}
+                    onClick={() => window.electronAPI.update.openRelease('https://github.com/ggerganov/whisper.cpp')}
+                  >{t.whisperCredit} ↗</div>
+                  <div
+                    style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--color-border)' }}
+                    onClick={() => window.electronAPI.update.openRelease('https://ffmpeg.org')}
+                  >{t.ffmpegCredit} ↗</div>
                 </div>
               </div>
               <div style={styles.cardDivider} />

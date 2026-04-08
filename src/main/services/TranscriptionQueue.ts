@@ -119,18 +119,22 @@ export class TranscriptionQueue {
       // Ensure whisper-cli (correct architecture and GPU support)
       const needsArchFix = this.whisperBinaryManager.needsArchFix()
       const needsGpuUpgrade = this.whisperBinaryManager.needsGpuUpgrade()
+      const needsCudaUpgrade = this.whisperBinaryManager.needsCudaUpgrade()
       if (needsArchFix) {
         console.log('[queue] Wrong whisper-cli architecture detected, downloading native build')
       }
       if (needsGpuUpgrade) {
         console.log('[queue] CPU-only whisper-cli detected, upgrading to GPU-enabled build')
       }
-      if (!locateWhisperCli() || needsArchFix || needsGpuUpgrade) {
+      if (needsCudaUpgrade) {
+        console.log('[queue] NVIDIA GPU with CUDA detected, upgrading from Vulkan to CUDA build')
+      }
+      if (!locateWhisperCli() || needsArchFix || needsGpuUpgrade || needsCudaUpgrade) {
         if (this.whisperBinaryManager.canAutoDownload()) {
           this.send('queue:sessionProgress', sessionId, -1, null)
           await this.whisperBinaryManager.download((fraction) => {
             this.send('deps:whisperDownloadProgress', fraction)
-          }, needsArchFix || needsGpuUpgrade)
+          }, needsArchFix || needsGpuUpgrade || needsCudaUpgrade)
         } else {
           throw new Error(this.whisperBinaryManager.getInstallInstructions())
         }
@@ -194,11 +198,10 @@ export class TranscriptionQueue {
       // Save to history
       const entry = this.historyService.save(result, filePath)
 
-      // Generate thumbnail (non-blocking)
-      const mediaPath = this.historyService.resolveMediaPath(entry)
-      if (mediaPath) {
+      // Generate thumbnail from original source file (non-blocking)
+      if (filePath && FileImportService.isVideoFile(filePath)) {
         const thumbPath = this.historyService.getThumbnailSavePath(entry.id)
-        FileImportService.generateThumbnail(mediaPath, thumbPath).catch(() => {})
+        FileImportService.generateThumbnail(filePath, thumbPath).catch(() => {})
       }
 
       // Notify completion
@@ -216,6 +219,16 @@ export class TranscriptionQueue {
       if (message.includes('not all tensors') || message.includes('failed to initialize whisper') || message.includes('GGML_ASSERT')) {
         console.warn('[queue] Model appears corrupt, marking for re-download')
         this.modelManager.deleteModel()
+      }
+
+      // Detect GPU-specific errors — notify user with choice to switch to CPU
+      if (isGpuError(message)) {
+        const backend = this.whisperBinaryManager.detectGpuSupport()
+        console.warn(`[queue] GPU error detected (backend: ${backend}):`, message.slice(0, 200))
+        this.send('queue:gpuError', sessionId, {
+          backend,
+          error: message.slice(0, 300)
+        })
       }
 
       // Detect ACCESS_VIOLATION on Windows — run diagnostics to provide actionable advice
@@ -252,4 +265,21 @@ export class TranscriptionQueue {
     this.queue.shift()
     this.processNext()
   }
+}
+
+/**
+ * Check if an error message indicates a GPU-specific failure.
+ * Covers Vulkan, CUDA, and Metal error patterns.
+ */
+function isGpuError(message: string): boolean {
+  const gpuPatterns = [
+    'vkCreateDevice', 'Vulkan error', 'VK_ERROR_',
+    'CUDA error', 'CUDA_ERROR_', 'no CUDA-capable device', 'out of memory',
+    'CUDA_OUT_OF_MEMORY', 'cudaMalloc failed',
+    'Metal error', 'MTLCreateSystemDefaultDevice',
+    'ggml_vulkan', 'ggml_cuda', 'ggml_metal',
+    'GPU memory', 'VRAM'
+  ]
+  const lower = message.toLowerCase()
+  return gpuPatterns.some(p => lower.includes(p.toLowerCase()))
 }
