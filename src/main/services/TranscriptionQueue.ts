@@ -198,11 +198,10 @@ export class TranscriptionQueue {
       // Save to history
       const entry = this.historyService.save(result, filePath)
 
-      // Generate thumbnail (non-blocking)
-      const mediaPath = this.historyService.resolveMediaPath(entry)
-      if (mediaPath) {
+      // Generate thumbnail from original source file (non-blocking)
+      if (filePath && FileImportService.isVideoFile(filePath)) {
         const thumbPath = this.historyService.getThumbnailSavePath(entry.id)
-        FileImportService.generateThumbnail(mediaPath, thumbPath).catch(() => {})
+        FileImportService.generateThumbnail(filePath, thumbPath).catch(() => {})
       }
 
       // Notify completion
