@@ -1,5 +1,6 @@
 import { ipcMain, dialog, nativeTheme, app, shell, BrowserWindow } from 'electron'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { copyFile, readdir, readFile, stat, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { userInfo } from 'os'
 import { logger } from '../services/Logger'
@@ -42,6 +43,7 @@ const store = new SettingsStore({
   hasCompletedOnboarding: false,
   privacyConsent: false,
   storageDirectory: '',
+  backupDirectory: '',
   activeModel: 'large-v3-turbo',
   // Performance — all acceleration enabled by default
   accelerationMode: 'gpu',       // 'cpu' | 'gpu'
@@ -91,6 +93,230 @@ export function registerSettingsIpc(): void {
     const home = process.env.HOME || process.env.USERPROFILE || ''
     const storageDir = dir || join(home, 'Documents', 'EchoTranscripts')
     shell.openPath(storageDir)
+  })
+
+  // --- Backup & Restore ---
+
+  ipcMain.handle('settings:getBackupDirectory', () => {
+    return (store.get('backupDirectory') as string) || ''
+  })
+
+  ipcMain.handle('settings:setBackupDirectory', (_event, path: string) => {
+    if (!existsSync(path)) mkdirSync(path, { recursive: true })
+    store.set('backupDirectory', path)
+  })
+
+  ipcMain.handle('settings:createBackup', async () => {
+    try {
+      const backupDir = (store.get('backupDirectory') as string) || ''
+      if (!backupDir) return { error: 'no_backup_dir' }
+
+      const dir = store.get('storageDirectory') as string
+      const home = process.env.HOME || process.env.USERPROFILE || ''
+      const storageDir = dir || join(home, 'Documents', 'EchoTranscripts')
+      if (!existsSync(storageDir)) return { error: 'storage_not_found' }
+
+      // Create timestamped subfolder
+      const now = new Date()
+      const ts = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
+      const backupSubDir = join(backupDir, `Echo-Backup-${ts}`)
+      await mkdir(backupSubDir, { recursive: true })
+      await mkdir(join(backupSubDir, '.echo', 'media'), { recursive: true })
+
+      // Enumerate files to copy
+      const filesToCopy: Array<{ src: string; dest: string; size: number }> = []
+      const echoDir = join(storageDir, '.echo')
+      const mediaDir = join(echoDir, 'media')
+
+      // .echo/*.json and .echo/*_thumb.jpg
+      if (existsSync(echoDir)) {
+        const echoFiles = await readdir(echoDir)
+        for (const f of echoFiles) {
+          const fullPath = join(echoDir, f)
+          const s = await stat(fullPath)
+          if (s.isFile() && (f.endsWith('.json') || f.endsWith('.jpg'))) {
+            filesToCopy.push({ src: fullPath, dest: join(backupSubDir, '.echo', f), size: s.size })
+          }
+        }
+      }
+
+      // .echo/media/*
+      if (existsSync(mediaDir)) {
+        const mediaFiles = await readdir(mediaDir)
+        for (const f of mediaFiles) {
+          const fullPath = join(mediaDir, f)
+          const s = await stat(fullPath)
+          if (s.isFile()) {
+            filesToCopy.push({ src: fullPath, dest: join(backupSubDir, '.echo', 'media', f), size: s.size })
+          }
+        }
+      }
+
+      // *_transcript.txt at root
+      if (existsSync(storageDir)) {
+        const rootFiles = await readdir(storageDir)
+        for (const f of rootFiles) {
+          if (f.endsWith('_transcript.txt')) {
+            const fullPath = join(storageDir, f)
+            const s = await stat(fullPath)
+            if (s.isFile()) {
+              filesToCopy.push({ src: fullPath, dest: join(backupSubDir, f), size: s.size })
+            }
+          }
+        }
+      }
+
+      const totalBytes = filesToCopy.reduce((sum, f) => sum + f.size, 0)
+      let copiedBytes = 0
+      const win = BrowserWindow.getAllWindows()[0]
+
+      for (const file of filesToCopy) {
+        await copyFile(file.src, file.dest)
+        copiedBytes += file.size
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('backup:progress', totalBytes > 0 ? copiedBytes / totalBytes : 1)
+        }
+      }
+
+      // Count entries (UUID .json files only)
+      const entryCount = filesToCopy.filter(f => {
+        const name = f.src.split('/').pop() || f.src.split('\\').pop() || ''
+        return f.src.includes('.echo') && name.endsWith('.json') && !name.includes('_thumb')
+      }).length
+
+      // Write manifest
+      const manifest = {
+        version: '1.0',
+        appVersion: app.getVersion(),
+        createdAt: now.toISOString(),
+        entryCount,
+        totalSizeBytes: totalBytes
+      }
+      writeFileSync(join(backupSubDir, 'echo-backup.json'), JSON.stringify(manifest, null, 2), 'utf-8')
+
+      return { success: true, path: backupSubDir, entryCount, totalSize: totalBytes }
+    } catch (err) {
+      logger.error('backup', `Backup failed: ${err}`)
+      return { error: String(err) }
+    }
+  })
+
+  ipcMain.handle('settings:readBackupManifest', async (_event, dirPath: string) => {
+    try {
+      const manifestPath = join(dirPath, 'echo-backup.json')
+      if (!existsSync(manifestPath)) return { error: 'no_manifest' }
+      const data = await readFile(manifestPath, 'utf-8')
+      return { manifest: JSON.parse(data) }
+    } catch (err) {
+      return { error: String(err) }
+    }
+  })
+
+  ipcMain.handle('settings:restoreBackup', async (_event, backupDirPath: string) => {
+    try {
+      const manifestPath = join(backupDirPath, 'echo-backup.json')
+      if (!existsSync(manifestPath)) return { error: 'no_manifest' }
+
+      const dir = store.get('storageDirectory') as string
+      const home = process.env.HOME || process.env.USERPROFILE || ''
+      const storageDir = dir || join(home, 'Documents', 'EchoTranscripts')
+      const echoDir = join(storageDir, '.echo')
+      const mediaDir = join(echoDir, 'media')
+      if (!existsSync(echoDir)) mkdirSync(echoDir, { recursive: true })
+      if (!existsSync(mediaDir)) mkdirSync(mediaDir, { recursive: true })
+
+      // Find which entry IDs already exist
+      const existingIds = new Set<string>()
+      if (existsSync(echoDir)) {
+        const files = readdirSync(echoDir)
+        for (const f of files) {
+          const match = f.match(/^([0-9a-f-]{36})\.json$/)
+          if (match) existingIds.add(match[1])
+        }
+      }
+
+      // Enumerate backup entry IDs
+      const backupEchoDir = join(backupDirPath, '.echo')
+      const backupMediaDir = join(backupEchoDir, 'media')
+      const skippedIds = new Set<string>()
+      const filesToCopy: Array<{ src: string; dest: string; size: number }> = []
+
+      if (existsSync(backupEchoDir)) {
+        const backupFiles = await readdir(backupEchoDir)
+        for (const f of backupFiles) {
+          const fullPath = join(backupEchoDir, f)
+          const s = await stat(fullPath)
+          if (!s.isFile()) continue
+
+          // Check if this is an entry JSON and if it conflicts
+          const jsonMatch = f.match(/^([0-9a-f-]{36})\.json$/)
+          if (jsonMatch && existingIds.has(jsonMatch[1])) {
+            skippedIds.add(jsonMatch[1])
+            continue
+          }
+
+          // Check if thumbnail belongs to a skipped entry
+          const thumbMatch = f.match(/^([0-9a-f-]{36})_thumb\.jpg$/)
+          if (thumbMatch && existingIds.has(thumbMatch[1])) {
+            skippedIds.add(thumbMatch[1])
+            continue
+          }
+
+          filesToCopy.push({ src: fullPath, dest: join(echoDir, f), size: s.size })
+        }
+      }
+
+      // Media files
+      if (existsSync(backupMediaDir)) {
+        const mediaFiles = await readdir(backupMediaDir)
+        for (const f of mediaFiles) {
+          const fullPath = join(backupMediaDir, f)
+          const s = await stat(fullPath)
+          if (!s.isFile()) continue
+
+          // Check if media belongs to a skipped entry
+          const idMatch = f.match(/^([0-9a-f-]{36})\./)
+          if (idMatch && skippedIds.has(idMatch[1])) continue
+
+          filesToCopy.push({ src: fullPath, dest: join(mediaDir, f), size: s.size })
+        }
+      }
+
+      // Transcript txt files
+      const backupRootFiles = await readdir(backupDirPath)
+      for (const f of backupRootFiles) {
+        if (!f.endsWith('_transcript.txt')) continue
+        const fullPath = join(backupDirPath, f)
+        const destPath = join(storageDir, f)
+        if (existsSync(destPath)) continue // skip existing
+        const s = await stat(fullPath)
+        if (s.isFile()) {
+          filesToCopy.push({ src: fullPath, dest: destPath, size: s.size })
+        }
+      }
+
+      const totalBytes = filesToCopy.reduce((sum, f) => sum + f.size, 0)
+      let copiedBytes = 0
+      const win = BrowserWindow.getAllWindows()[0]
+
+      for (const file of filesToCopy) {
+        await copyFile(file.src, file.dest)
+        copiedBytes += file.size
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('backup:progress', totalBytes > 0 ? copiedBytes / totalBytes : 1)
+        }
+      }
+
+      const restoredCount = filesToCopy.filter(f => {
+        const name = f.src.split('/').pop() || f.src.split('\\').pop() || ''
+        return f.src.includes('.echo') && name.endsWith('.json') && !name.includes('_thumb') && name !== 'echo-backup.json'
+      }).length
+
+      return { success: true, restoredCount, skippedCount: skippedIds.size }
+    } catch (err) {
+      logger.error('backup', `Restore failed: ${err}`)
+      return { error: String(err) }
+    }
   })
 
   ipcMain.handle('platform:getTheme', () => {
