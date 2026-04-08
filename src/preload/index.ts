@@ -38,7 +38,33 @@ const electronAPI = {
     getMediaUrl: (id: string): Promise<string | null> =>
       ipcRenderer.invoke('history:getMediaUrl', id),
     getThumbnail: (id: string): Promise<string | null> =>
-      ipcRenderer.invoke('history:getThumbnail', id)
+      ipcRenderer.invoke('history:getThumbnail', id),
+    moveToFolder: (id: string, folderId: string | null): Promise<void> =>
+      ipcRenderer.invoke('history:moveToFolder', id, folderId),
+    moveMultipleToFolder: (ids: string[], folderId: string | null): Promise<void> =>
+      ipcRenderer.invoke('history:moveMultipleToFolder', ids, folderId),
+    setTags: (id: string, tagIds: string[]): Promise<void> =>
+      ipcRenderer.invoke('history:setTags', id, tagIds)
+  },
+
+  // Folders & Tags
+  folders: {
+    getMetadata: (): Promise<{ folders: unknown[]; tags: unknown[] }> =>
+      ipcRenderer.invoke('folders:getMetadata'),
+    createFolder: (name: string, parentId: string | null): Promise<unknown> =>
+      ipcRenderer.invoke('folders:createFolder', name, parentId),
+    renameFolder: (id: string, name: string): Promise<unknown> =>
+      ipcRenderer.invoke('folders:renameFolder', id, name),
+    deleteFolder: (id: string): Promise<void> =>
+      ipcRenderer.invoke('folders:deleteFolder', id),
+    moveFolder: (id: string, newParentId: string | null): Promise<unknown> =>
+      ipcRenderer.invoke('folders:moveFolder', id, newParentId),
+    createTag: (name: string, color: string): Promise<unknown> =>
+      ipcRenderer.invoke('folders:createTag', name, color),
+    updateTag: (id: string, name: string, color: string): Promise<unknown> =>
+      ipcRenderer.invoke('folders:updateTag', id, name, color),
+    deleteTag: (id: string): Promise<void> =>
+      ipcRenderer.invoke('folders:deleteTag', id)
   },
 
   // Export

@@ -1,5 +1,25 @@
 // Core data models — mirrors the Swift models for backward-compatible JSON
 
+// Folder & Tag models
+
+export interface Folder {
+  id: string
+  name: string
+  parentId: string | null
+  color: string | null
+  createdAt: string
+  order: number
+}
+
+export interface Tag {
+  id: string
+  name: string
+  color: string
+}
+
+export type SortField = 'createdAt' | 'fileName' | 'audioDuration' | 'detectedLanguage'
+export type SortDirection = 'asc' | 'desc'
+
 export interface TranscriptSegment {
   id: string // UUID
   startTime: number // seconds
@@ -34,6 +54,8 @@ export interface HistoryEntry {
   wordCount: number | null
   characterCount: number | null
   segments: HistorySegment[]
+  folderId: string | null
+  tagIds: string[]
 }
 
 export interface HistorySegment {

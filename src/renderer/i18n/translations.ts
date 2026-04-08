@@ -283,6 +283,20 @@ export interface Translations {
   closeWarningMessage: string
   closeWarningDetail: string
   quitAnyway: string
+
+  // Folders & Tags
+  allRecords: string
+  newFolder: string
+  createSubfolder: string
+  moveToFolder: string
+  tags: string
+  newTag: string
+  removeTag: string
+  sortBy: string
+  sortByDate: string
+  sortByName: string
+  sortByDuration: string
+  sortByLanguage: string
 }
 
 export const translations: Record<UILocale, Translations> = {
@@ -521,7 +535,20 @@ export const translations: Record<UILocale, Translations> = {
     closeWarningTitle: 'Transcription in progress',
     closeWarningMessage: 'One or more files are still being transcribed.',
     closeWarningDetail: 'If you quit now, progress will be lost. Are you sure?',
-    quitAnyway: 'Quit Anyway'
+    quitAnyway: 'Quit Anyway',
+
+    allRecords: 'All Records',
+    newFolder: 'New Folder',
+    createSubfolder: 'New Subfolder',
+    moveToFolder: 'Move to Folder',
+    tags: 'Tags',
+    newTag: 'New tag...',
+    removeTag: 'Remove tag',
+    sortBy: 'Sort by',
+    sortByDate: 'Date',
+    sortByName: 'Name',
+    sortByDuration: 'Duration',
+    sortByLanguage: 'Language'
   },
 
   ru: {
@@ -759,7 +786,20 @@ export const translations: Record<UILocale, Translations> = {
     closeWarningTitle: 'Транскрипция в процессе',
     closeWarningMessage: 'Один или несколько файлов еще обрабатываются.',
     closeWarningDetail: 'Если вы закроете приложение, прогресс будет потерян. Вы уверены?',
-    quitAnyway: 'Закрыть'
+    quitAnyway: 'Закрыть',
+
+    allRecords: 'Все записи',
+    newFolder: 'Новая папка',
+    createSubfolder: 'Новая подпапка',
+    moveToFolder: 'Переместить в папку',
+    tags: 'Теги',
+    newTag: 'Новый тег...',
+    removeTag: 'Удалить тег',
+    sortBy: 'Сортировка',
+    sortByDate: 'Дата',
+    sortByName: 'Имя',
+    sortByDuration: 'Длительность',
+    sortByLanguage: 'Язык'
   },
 
   de: {
@@ -997,7 +1037,20 @@ export const translations: Record<UILocale, Translations> = {
     closeWarningTitle: 'Transkription läuft',
     closeWarningMessage: 'Eine oder mehrere Dateien werden noch transkribiert.',
     closeWarningDetail: 'Wenn Sie jetzt beenden, geht der Fortschritt verloren. Sind Sie sicher?',
-    quitAnyway: 'Trotzdem beenden'
+    quitAnyway: 'Trotzdem beenden',
+
+    allRecords: 'Alle Aufnahmen',
+    newFolder: 'Neuer Ordner',
+    createSubfolder: 'Neuer Unterordner',
+    moveToFolder: 'In Ordner verschieben',
+    tags: 'Tags',
+    newTag: 'Neues Tag...',
+    removeTag: 'Tag entfernen',
+    sortBy: 'Sortieren nach',
+    sortByDate: 'Datum',
+    sortByName: 'Name',
+    sortByDuration: 'Dauer',
+    sortByLanguage: 'Sprache'
   },
 
   fr: {
@@ -1235,6 +1288,19 @@ export const translations: Record<UILocale, Translations> = {
     closeWarningTitle: 'Transcription en cours',
     closeWarningMessage: 'Un ou plusieurs fichiers sont encore en cours de transcription.',
     closeWarningDetail: 'Si vous quittez maintenant, la progression sera perdue. Êtes-vous sûr ?',
-    quitAnyway: 'Quitter quand même'
+    quitAnyway: 'Quitter quand même',
+
+    allRecords: 'Tous les enregistrements',
+    newFolder: 'Nouveau dossier',
+    createSubfolder: 'Nouveau sous-dossier',
+    moveToFolder: 'Déplacer vers le dossier',
+    tags: 'Tags',
+    newTag: 'Nouveau tag...',
+    removeTag: 'Supprimer le tag',
+    sortBy: 'Trier par',
+    sortByDate: 'Date',
+    sortByName: 'Nom',
+    sortByDuration: 'Durée',
+    sortByLanguage: 'Langue'
   }
 }

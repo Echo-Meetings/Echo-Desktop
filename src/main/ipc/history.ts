@@ -43,4 +43,16 @@ export function registerHistoryIpc(): void {
       return null
     }
   })
+
+  ipcMain.handle('history:moveToFolder', async (_event, id: string, folderId: string | null) => {
+    historyService.moveToFolder(id, folderId)
+  })
+
+  ipcMain.handle('history:moveMultipleToFolder', async (_event, ids: string[], folderId: string | null) => {
+    historyService.moveMultipleToFolder(ids, folderId)
+  })
+
+  ipcMain.handle('history:setTags', async (_event, id: string, tagIds: string[]) => {
+    historyService.setTags(id, tagIds)
+  })
 }

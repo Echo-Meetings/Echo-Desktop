@@ -6,7 +6,11 @@ import type {
   TranscriptSegment,
   TranscriptResult,
   QueueSession,
-  QueueSessionStatus
+  QueueSessionStatus,
+  Folder,
+  Tag,
+  SortField,
+  SortDirection
 } from '@/types/models'
 
 interface AppStore {
@@ -52,6 +56,24 @@ interface AppStore {
   setViewingEntry: (entry: HistoryEntry | null) => void
   setHistoryFilter: (filter: HistoryFilter) => void
   setHistorySearch: (search: string) => void
+
+  // Folders & Tags
+  folders: Folder[]
+  tags: Tag[]
+  activeFolderId: string | null
+  expandedFolderIds: Set<string>
+  activeTagFilter: string | null
+  setFolders: (folders: Folder[]) => void
+  setTags: (tags: Tag[]) => void
+  setActiveFolderId: (id: string | null) => void
+  toggleFolderExpanded: (id: string) => void
+  setActiveTagFilter: (tagId: string | null) => void
+
+  // Sorting
+  sortField: SortField
+  sortDirection: SortDirection
+  setSortField: (field: SortField) => void
+  setSortDirection: (dir: SortDirection) => void
 
   // Settings
   uiLanguage: 'en' | 'ru' | 'de' | 'fr'
@@ -185,6 +207,30 @@ export const useAppStore = create<AppStore>((set) => ({
   setViewingEntry: (entry) => set({ viewingEntry: entry, focusedSessionId: null }),
   setHistoryFilter: (filter) => set({ historyFilter: filter }),
   setHistorySearch: (search) => set({ historySearch: search }),
+
+  // Folders & Tags
+  folders: [],
+  tags: [],
+  activeFolderId: null,
+  expandedFolderIds: new Set<string>(),
+  activeTagFilter: null,
+  setFolders: (folders) => set({ folders }),
+  setTags: (tags) => set({ tags }),
+  setActiveFolderId: (id) => set({ activeFolderId: id }),
+  toggleFolderExpanded: (id) =>
+    set((state) => {
+      const next = new Set(state.expandedFolderIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return { expandedFolderIds: next }
+    }),
+  setActiveTagFilter: (tagId) => set({ activeTagFilter: tagId }),
+
+  // Sorting
+  sortField: 'createdAt',
+  sortDirection: 'desc',
+  setSortField: (field) => set({ sortField: field }),
+  setSortDirection: (dir) => set({ sortDirection: dir }),
 
   // Settings
   uiLanguage: 'en',
