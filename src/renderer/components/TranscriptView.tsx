@@ -4,7 +4,7 @@ import { formatTimestamp, formatDuration, getFullText, getTimestampedText, isVid
 import { useT, fmt } from '@/i18n'
 
 const MIME_TYPES: Record<string, string> = {
-  mp4: 'video/x-matroska', 
+  mkv: 'video/x-matroska', 
   mp4: 'video/mp4', 
   m4v: 'video/mp4', 
   mov: 'video/quicktime',
