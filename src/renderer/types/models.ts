@@ -110,10 +110,10 @@ export const SUPPORTED_LANGUAGES = [
 ] as const
 
 export const SUPPORTED_EXTENSIONS = new Set([
-  'webm', 'mp4', 'm4v', 'mp3', 'm4a', 'wav', 'mov', 'ogg'
+  'mkv', 'webm', 'mp4', 'm4v', 'mp3', 'm4a', 'wav', 'mov', 'ogg'
 ])
 
-export const VIDEO_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'webm'])
+export const VIDEO_EXTENSIONS = new Set(['mkv', 'mp4', 'm4v', 'mov', 'webm'])
 
 // Utility functions
 
