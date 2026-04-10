@@ -6,8 +6,8 @@ import { randomUUID } from 'crypto'
 import { locateFFmpeg, locateFFprobe } from './BinaryPaths'
 import { detectHwEncoder } from './HardwareDetection'
 
-const SUPPORTED_EXTENSIONS = new Set(['mkv', 'webm', 'mp4', 'm4v', 'mp3', 'm4a', 'wav', 'mov', 'ogg'])
-const NEEDS_CONVERSION = new Set(['mkv', 'webm', 'ogg'])
+const SUPPORTED_EXTENSIONS = new Set(['mp4', 'mp3', 'webm', 'm4a', 'wav', 'mov', 'ogg', 'mkv', 'm4v', 'opus', 'flac'])
+const NEEDS_CONVERSION = new Set(['mkv', 'webm', 'ogg', 'opus', 'flac'])
 
 export type ValidationResult =
   | { status: 'valid'; filePath: string }
@@ -174,7 +174,7 @@ export async function generateThumbnail(videoPath: string, outputPath: string): 
   })
 }
 
-const VIDEO_EXTENSIONS = new Set(['mkv', 'mp4', 'mov', 'm4v', 'webm'])
+const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'webm', 'mkv', 'm4v'])
 
 /**
  * Check if a file is a video (not audio-only).
