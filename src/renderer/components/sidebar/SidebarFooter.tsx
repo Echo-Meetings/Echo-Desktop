@@ -4,12 +4,20 @@ interface Props {
 }
 
 export function SidebarFooter({ username, onSettingsClick }: Props) {
+  const handleRevealStorage = () => {
+    // Open storage location using Electron IPC (mirror Settings.tsx behavior)
+    window.electronAPI.settings.revealStorage()
+  };
   return (
     <div style={styles.footer}>
       <div style={styles.footerUser}>
         <div style={styles.userAvatar}>{username ? username.slice(0, 2).toUpperCase() : '?'}</div>
         <span style={styles.userName}>{username || 'User'}</span>
       </div>
+      <div style={{flex: 1}} />
+      <button onClick={handleRevealStorage} style={styles.showTranscriptsBtn} title="Reveal storage">
+        &#128194;
+      </button>
       <button onClick={onSettingsClick} style={styles.settingsBtn} title="Settings">
         &#x2699;
       </button>
@@ -46,6 +54,19 @@ const styles: Record<string, React.CSSProperties> = {
   userName: {
     fontSize: 'var(--font-caption)',
     fontWeight: 500
+  },
+  showTranscriptsBtn: {
+    width: 28,
+    height: 28,
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    backgroundColor: 'transparent',
+    color: 'var(--color-secondary)',
+    cursor: 'pointer',
+    fontSize: 16,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   settingsBtn: {
     width: 28,
