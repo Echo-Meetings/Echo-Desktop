@@ -4,9 +4,15 @@ import { formatTimestamp, formatDuration, getFullText, getTimestampedText, isVid
 import { useT, fmt } from '@/i18n'
 
 const MIME_TYPES: Record<string, string> = {
-  mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime',
-  webm: 'video/webm', mp3: 'audio/mpeg', m4a: 'audio/mp4',
-  wav: 'audio/wav', ogg: 'audio/ogg'
+  mkv: 'video/x-matroska', 
+  mp4: 'video/mp4', 
+  m4v: 'video/mp4', 
+  mov: 'video/quicktime',
+  webm: 'video/webm', 
+  mp3: 'audio/mpeg', 
+  m4a: 'audio/mp4',
+  wav: 'audio/wav', 
+  ogg: 'audio/ogg'
 }
 
 function getMimeType(path: string): string {

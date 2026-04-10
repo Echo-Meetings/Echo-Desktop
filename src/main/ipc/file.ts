@@ -1,7 +1,7 @@
 import { ipcMain, dialog } from 'electron'
 import * as FileImportService from '../services/FileImportService'
 
-const SUPPORTED_EXTENSIONS = ['webm', 'mp4', 'm4v', 'mp3', 'm4a', 'wav', 'mov', 'ogg']
+const SUPPORTED_EXTENSIONS = ['mkv', 'webm', 'mp4', 'm4v', 'mp3', 'm4a', 'wav', 'mov', 'ogg']
 
 export function registerFileIpc(): void {
   ipcMain.handle('file:openPicker', async () => {
